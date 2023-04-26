@@ -17,7 +17,7 @@
 
 <<<<<<<<<<<<<<<<<<<<<<<
 
-# New enhanced reasoning capabilities:
+# Enhanced reasoning capabilities for BabyAGI
 
 Since I felt approaches involving counters or other "coded" solutions are suboptimal for a finite process with a final result, I tried another route: Definition of a stop criteria and modification of agent function prompts, so that the ultimate objective is followed more closely and the stop criteria is considered. This is how it started...
 
@@ -33,7 +33,7 @@ In the meantime I did modify almost all agent prompts, some extensively, with th
 
 No new agents have been introduced, hence no additional OpenAI API calls required.
 
-I am still testing and fine-tuning the functionality. Due to the many commits to the main branch I am not able to catch up, so I will keep it in this side branch for the time being...
+I am still testing, fine-tuning and adding more functionalities to the system. Due to the many commits to the main branch I am not able to catch up, so I will keep it in this side branch for the time being...
 
 <<<<<<<<<<<<<<<<<<<<<<<
 
@@ -45,7 +45,7 @@ I did use the plausi feature in order to reduce the time to completion, w/o migh
 
 <<<<<<<<<<<<<<<<<<<<<<<
 
-# New parameters in environment file:
+# New parameters in environment file
 
 GOOGLE_API_KEY=Google custom search API key
 
