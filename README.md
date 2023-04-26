@@ -59,7 +59,7 @@ STOP_CRITERIA=The condition under which the ultimate objective is achieved.
 
 PLAUSI_NUMBER=Plausibilization is an additional feature, working in parallel to the stop criteria. Based on the latest task result's contribution to the ultimate objective each completed task gets evaluated and a percentage value is assigned. After a factor is applied (value * 0.01), the values are added up each cycle and checked if greater than the PLAUSI_NUMBER. The feature is intended as a safety mechanism against infinite operation. If PLAUSI_NUMBER is set to 0 the plausi mechanism gets deactivated.
 
-CONTRIBUTION_THRESHOLD=The threshold (percentage) for last task result's contribution to the task objective, for changing the topic for new tasks in case of low contribution (0 means only in case of no contribution and deactivates the feature)
+CONTRIBUTION_THRESHOLD=The threshold (percentage) for last task result's contribution to the ultimate objective, for changing the topic for new tasks in case of low contribution (0 means only in case of no contribution and deactivates the feature)
 
 FINAL_PROMPT=Description for action which shall be executed when the ultimate objective has been achieved, before stopping the script.
 
