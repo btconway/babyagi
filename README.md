@@ -1,7 +1,7 @@
 # BabyAGI with enhanced reasoning capabilities,... making it possible to achieve the ultimate objective
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI_Reasoning.jpeg)
 
-## Major update: Streamlined Google search functionality, using reasoning capabilities added
+## Major update: Streamlined Google search functionality with reasoning capabilities added
   - The LLM does reason when it is necessary to access the internet (optimizing Google API usage), rephrases the task objective to an optimal search request, determines the relevant information from the search result and combines this with what it knows already
   - The Google top result list and the content of the top web page (up to 1000 characters) are getting analyzed by the LLM
   - If the Google API key is not configured, internet search functionality is excluded automatically. In case an internet search would have been relevant for the task, this is displayed in terminal & file output
