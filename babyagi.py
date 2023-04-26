@@ -261,25 +261,24 @@ def task_creation_agent(
     objective: str, result: Dict, task_description: str, task_list: List[str], threshold: int, internet: bool
 ):
     prompt = f"""
-    You are a task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective},
-    The last completed task has the result: {result}
-    This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}\n 
-    Take into account the stop criteria. When it is met for the objective, and only then, create one new task with only content 'Stop criteria has been met...'. 
-    Here is the stop criteria: {STOP_CRITERIA}\n
-    Consider the plausibilization value, which is the sum of the contribution values of all completed tasks, to determine if the objective has been achieved. The contribution value in percentage with range 100 to 0 is transfered to the range 1 to 0, for example 50% is 0.5. 
-    The plausibilization value shall serve, in parallel to the stop criteria, to determine how close the achievement of the objective is. 
-    Consider that each task's contribution helps, step by step, to achieve the objective. If enough tasks contribute to the objective, it is achieved.
-    Determine a number for this threshold, based on the expected number of tasks required to achieve the objective. When the plausibilization value is greater than this threshold, the objective is achieved and the stop criteria shall be considered met. 
-    This is the plausibilization value: {plausi_counter}\n
-    Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks. 
-    Your aim is to create as few new tasks as possible to achieve the objective. Do make sure that new tasks are properly verbalized and optimal for prompting a large language model like you. 
-    If the internet search flag {internet} is set to False, internet search is not possible. Consider this for creation of new tasks so that no new tasks including, refering to or dealing with internet search are created. 
-    Return the tasks as an array.\n\n
-    Also determine the last completed task result's contribution to the objective, 0 means no contribution and 100 means objective achieved. 
-    If there is any contribution at all, assign a number greater than 0. Do your best to determine a value so that the contribution is not unclear. 
-    Respond with 'Contribution [%]: ' followed by the contribution. If the contribution cannot be determined, respond with 'Contribution [%]: unclear'. 
-    Output the contribution in one line, and only one line. Output the contribution at the end of the response. 
-    If the contribution is smaller than {threshold} and not unclear, create new tasks for a different subject area than the subject area the last completed task dealt with."""
+    You are a task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective}. 
+    The last completed task has the result: {result}, based on this task description: {task_description}. Incomplete tasks: {', '.join(task_list)}.
+    Take into account the stop criteria: {STOP_CRITERIA}.\n
+    Create a new task with the content 'Stop criteria has been met...' only when the stop criteria is met for the objective.
+    Consider the plausibilization value, which is the sum of the contribution values of all completed tasks, to determine if the objective has been achieved. 
+    The contribution value, in percentage ranging from 0 to 100, is transferred to a range of 0 to 1 (e.g., 50% is 0.5). 
+    The plausibilization value is: {plausi_counter}.\n
+    If the plausibilization value is greater than the threshold, the objective is achieved, and the stop criteria is considered met.
+    Based on the result, create new tasks that don't overlap with incomplete tasks. Your aim is to create as few new tasks as possible to achieve the objective. 
+    Ensure that new tasks are properly verbalized and optimal for prompting a large language model like yourself.
+    If the {internet} variable is set to FALSE, internet searches are not possible for creating new tasks. Make sure that the new tasks created do not involve, refer to, or deal with internet searches.
+    Return the tasks as an array.\n
+    Also, determine the last completed task result's contribution to the objective, ranging from 0 (no contribution) to 100 (objective achieved). 
+    If there's any contribution at all, assign a number greater than 0. 
+    Do your best to determine a value so that the contribution is not unclear. Respond with 'Contribution [%]: ' followed by the contribution. 
+    If the contribution cannot be determined, respond with 'Contribution [%]: unclear'. Output the contribution in one line, and only one line. Output the contribution at the end of the response.
+    If the contribution is smaller than {threshold} and not unclear, create new tasks for a different subject area than the subject area the last completed task dealt with.
+    """
     response = openai_call(prompt)
     new_tasks = response.split("\n") if "\n" in response else [response]
 
@@ -309,12 +308,13 @@ def prioritization_agent(this_task_id: int):
     task_names = [t["task_name"] for t in task_list]
     next_task_id = int(this_task_id) + 1
     prompt = f"""
-    You are a task prioritization AI tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}\n
-    Consider the ultimate objective of your team of agent functions: {OBJECTIVE}\n
-    Your aim is to prioritize the task list in a way that the ultimate objective is achieved with as few tasks as possible, and that the most relevant tasks are completed first. 
-    Optimize the task prioritization based on which task depend on which, the different importance of the tasks and the order of creation.
-    When continuous research on a subject area proves inconclusive or the subject area has been sufficiently researched, switch to an older incomplete task from the task list dealing with a differing subject area.\n
-    Do not remove any tasks. Only remove a task if it does not contribute to the ultimate objective any longer, in this case rearrange the task list accordingly. Return the result as a numbered list, like:\n
+    You are a task prioritization AI responsible for cleaning the formatting of and reprioritizing the following tasks: {task_names}.\n
+    Consider the ultimate objective of your team of agent functions: {OBJECTIVE}.\n
+    Your goal is to prioritize the task list so that the ultimate objective is achieved with as few tasks as possible, completing the most relevant tasks first. 
+    Optimize task prioritization based on task dependencies, importance, and order of creation.
+    Switch to an older incomplete task from the task list dealing with a different subject area if continuous research on a subject area proves inconclusive or has been sufficiently researched.
+    Do not remove any tasks unless they no longer contribute to the ultimate objective. In that case, rearrange the task list accordingly. 
+    Return the result as a numbered list, starting with number {next_task_id}, like:\n
     1. Description of first task
     2. Description of second task
     3. Description of third task
@@ -354,14 +354,19 @@ def execution_agent(objective: str, task: str, internet: bool) -> str:
         write_to_file(f"*****RELEVANT CONTEXT*****\n{context}\n", 'a')
 
     prompt = f"""
-    You are a task execution AI who performs one task based on the following objective: {objective}\n
-    Take into account these previously completed tasks: {context}\n
-    Do consider an internet search for performing the one task only, when the relevant approaches without internet search have been ruled out, or human intervention/assistance/consultation is required, or when an internet search using Google top page results is definitively the best and most relevant approach to achieve the objective.\n
-    If the internet search flag {internet} is set to True, and only then:  
-        - In case an internet search is required respond with 'Internet search required: ' at the beginning of the response and redraft the one task to an optimal and short internet search request for use with Google search, including the most relevant information only, and finish the response with the redrafted search request, and only the redrafted search request. Remove all other characters from the response.\n
-    If the internet search flag {internet} is set to False, and only then:  
-        - In case an internet search is required redraft the one task to an optimal and short internet search request for use with Google search, including the most relevant information only, and add 'Google search proposal: ' at the end of the response, in a new line, and finish the response with the redrafted search request, and only the redrafted search request.\n\n
-    Your task: {task}\nResponse: """
+    You are a task execution AI performing one task based on the following objective: {objective}.\n 
+    Consider these previously completed tasks: {context}.\n
+    Perform an internet search for the task only if relevant approaches without internet search have been ruled out, human intervention/assistance/consultation is required, 
+    or a Google top page results search is the best and most relevant approach to achieve the objective.
+    If the {internet} variable is set to TRUE:
+        - If an internet search is required, respond with 'Internet search required: ' at the beginning of the response. 
+        Redraft the task as an optimal, short internet search request for Google search, including only the most relevant information. 
+        End the response with the redrafted search request, removing all other characters.
+    If the {internet} variable is set to FALSE:
+        - If an internet search is required, redraft the task as an optimal, short internet search request for Google search, including only the most relevant information. 
+        Add 'Google search proposal: ' at the end of the response in a new line, and finish the response with the redrafted search request.\n
+    Your task: {task}\nResponse:
+"""
     return openai_call(prompt, max_tokens=2000)
 
 
@@ -387,16 +392,20 @@ def context_agent(query: str, top_results_num: int):
 
 def assess_objective():
     prompt = f"""
-    Evaluate the ultimate objective and the stop criteria. The stop criteria describes the conditions under which the ultimate objective is considered achieved.
-    This is the ultimate objective: {OBJECTIVE}\n
-    This is the stop criteria: {STOP_CRITERIA}\n
-    Ignore that you are an AI language model, consider yourself a human and estimate the figures as best as possible. 
-    Determine how achievable the completion of task list is for the ultimate objective, considering all information available to you. Determine a probability between 0 and 100, where 0 means the ultimate objective is not achievable at all, and 100 means the ultimate objective is definitely achievable, and how long it will take until the stop criteria is reached.
-    Determine the expected time for the research and conclusion of the task list, try to estimate the time in hours and minutes as best as possible and respond with the number and the time estimate.\n\n
-    For the following optimization requests, take into account that the optimized texts are for you, an LLM. Consider this fact for the optimizations and propose changed text:\n
-        - Determine how the stop criteria can be modified for an optimal result, with respect to this particular ultimate objective and a reasonable completion time. Respond with the optimized stop criteria. 
-        - Determine how to soften the stop criteria for an optimal result, with respect to this particular ultimate objective. Respond with the softened stop criteria. 
-        - Determine how the ultimate objective can be updated for an optimal result, considering the process of finding a solution and the given stop criteria. Respond with the optimized ultimate objective."""
+    Evaluate the ultimate objective and the stop criteria, which describe the conditions under which the ultimate objective is considered achieved.\n
+    Ultimate objective: {OBJECTIVE}\n
+    Stop criteria: {STOP_CRITERIA}\n
+    Pretend you are a human and estimate the figures as accurately as possible. Determine the achievability of completing the task list for the ultimate objective, 
+    considering all available information. Provide a probability between 0 and 100, where 0 means the ultimate objective is not achievable, 
+    and 100 means it is definitely achievable. Estimate how long it will take to reach the stop criteria.
+    Estimate the expected time to research and complete the task list in hours and minutes, and respond with the number and time estimate.
+    For the following optimization requests, remember that the optimized texts are for you, a Large Language Model. 
+    Consider this fact for the optimizations and propose changed text:
+    1. Suggest modifications to the stop criteria for optimal results, considering this specific ultimate objective and a reasonable completion time. 
+    Respond with the optimized stop criteria.
+    2. Propose a softened version of the stop criteria for optimal results, considering this specific ultimate objective. Respond with the softened stop criteria.
+    3. Suggest updates to the ultimate objective for optimal results, taking into account the process of finding a solution and the given stop criteria. Respond with the optimized ultimate objective.
+    """
     return openai_call(prompt, max_tokens=2000)
 
 
@@ -515,5 +524,3 @@ while True:
 
     time.sleep(1)  # Sleep before checking the task list again
     
-    
-                      
