@@ -13,7 +13,7 @@
 
 ## Update: Manual trigger for final prompt and log file append after restart with same objective added
   - Log files (task_list.txt) are getting appended after re-start, in case the OBJECTIVE is unchanged
-  - - Adding of simple trigger mechanism using trigger.txt and text "STOP" in file. Write the text into the file during runtime and during next task list creation the final prompt is triggered. I was not able to integrate something with key press detection in the existing code, so that has to suffice for the time being.
+  - Adding of simple trigger mechanism using trigger.txt and text "STOP" in file. Write the text into the file during runtime and during next task list creation the final prompt is triggered. I was not able to integrate something with key press detection in the existing code, so that has to suffice for the time being.
 
 <<<<<<<<<<<<<<<<<<<<<<<
 
