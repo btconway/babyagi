@@ -385,17 +385,20 @@ def internet_research(topic: str, num_results=5, num_pages=1):
     return toplist_result, page_content
 
 
+# Evaluate feasibility of the objective with given stop criteria and make proposals for optimization
+evaluation = assess_objective()
+print(f"\n\033[90m\033[1m*****FEASIBILITY EVALUATION*****\033[0m\033[0m\n{evaluation}")
+write_to_file(f"*****FEASIBILITY EVALUATION*****\n{evaluation}\n\n", 'a')
+
 # Add the first task
 first_task = {"task_id": 1, "task_name": INITIAL_TASK}
 add_task(first_task)
+
 # Main loop
 task_id_counter = 1
 task_contribution = 0       # Contribution of the task to the ultimate objective as percentage
 plausi_counter = 0.0        # Plausibility counter for the task contribution (in percentage*0.01)
 while True:
-    evaluation = assess_objective()
-    print(f"\n\033[90m\033[1m*****FEASIBILITY EVALUATION*****\033[0m\033[0m\n{evaluation}")
-    write_to_file(f"*****FEASIBILITY EVALUATION*****\n{evaluation}\n\n", 'a')
     if task_list:
         # Print the task list
         print("\033[95m\033[1m" + "\n*****TASK LIST*****" + "\033[0m\033[0m")
