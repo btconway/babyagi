@@ -12,8 +12,8 @@
   - The evaluted figures, especially for time to completion, vary from run to run. Still room for improvement...
 
 ## Update: Manual trigger for final prompt and log file append after restart with same objective added
-  - Log files (task_list.txt) are getting appended after re-start, in case the OBJECTIVE is unchanged
-  - Adding of simple trigger mechanism using trigger.txt and text "STOP" in file. Write the text into the file during runtime and during next task list creation the final prompt is triggered. I was not able to integrate something with key press detection in the existing code, so that has to suffice for the time being.
+  - Adding of simple trigger mechanism using file trigger.txt and text "STOP". Write the text into the file+save during runtime, and during next task list creation the final prompt is triggered, giving the user the freedom to decide when the final response shall be generated. I was not able to integrate something with key press detection in the existing code, so that has to suffice for the time being.
+  - Log files (task_list.txt) are getting appended after re-start, in case the OBJECTIVE is unchanged. Helps not to loose parts of the task list for later use.
 
 <<<<<<<<<<<<<<<<<<<<<<<
 
