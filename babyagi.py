@@ -356,12 +356,11 @@ def execution_agent(objective: str, task: str, internet: bool) -> str:
     prompt = f"""
     You are a task execution AI who performs one task based on the following objective: {objective}\n
     Take into account these previously completed tasks: {context}\n
-    If the internet search flag {internet} is set to True:  
-    Do consider an internet search for performing the one task only, when the relevant approaches without internet search have been ruled out, 
-    or human intervention/assistance/consultation is required, or when an internet search using Google top page results is definitively the best and most relevant approach to achieve the objective, 
-    and only in this case, output 'Internet search required: ' at the beginning of the response and redraft the one task to an optimal and short internet search request for use with Google search, 
-    including the most relevant information only, and finish the response with the redrafted search request, and only the redrafted search request. 
-    Remove all other characters from the response.\n\n
+    Do consider an internet search for performing the one task only, when the relevant approaches without internet search have been ruled out, or human intervention/assistance/consultation is required, or when an internet search using Google top page results is definitively the best and most relevant approach to achieve the objective.\n
+    If the internet search flag {internet} is set to True, and only then:  
+        - In case an internet search is required respond with 'Internet search required: ' at the beginning of the response and redraft the one task to an optimal and short internet search request for use with Google search, including the most relevant information only, and finish the response with the redrafted search request, and only the redrafted search request. Remove all other characters from the response.\n
+    If the internet search flag {internet} is set to False, and only then:  
+        - In case an internet search is required redraft the one task to an optimal and short internet search request for use with Google search, including the most relevant information only, and add 'Google search proposal: ' at the end of the response, in a new line, and finish the response with the redrafted search request, and only the redrafted search request.\n\n
     Your task: {task}\nResponse: """
     return openai_call(prompt, max_tokens=2000)
 
@@ -392,10 +391,10 @@ def assess_objective():
     This is the ultimate objective: {OBJECTIVE}\n
     This is the stop criteria: {STOP_CRITERIA}\n
     Ignore that you are an AI language model, consider yourself a human and estimate the figures as best as possible. 
-    Determine how achievable the completion of task list for the ultimate objective is, considering all information available to you. Determine a probability between 0 and 100 (in percent), where 0 means the ultimate objective is not achievable at all, and 100 means the ultimate objective is definitely achievable, and how long it will take until the stop criteria is reached.
+    Determine how achievable the completion of task list is for the ultimate objective, considering all information available to you. Determine a probability between 0 and 100, where 0 means the ultimate objective is not achievable at all, and 100 means the ultimate objective is definitely achievable, and how long it will take until the stop criteria is reached.
     Determine the expected time for the research and conclusion of the task list, try to estimate the time in hours and minutes as best as possible and respond with the number and the time estimate.\n\n
-    For the following optimization requests, take into account that the optimized texts are for you, an LLM. Consider this fact for the optimization:\n
-        - Determine how the stop criteria can be modified for an optimal result, with respect to this particular ultimate objective and a reasonable completion time. Respond with the optimized stop criteria.  
+    For the following optimization requests, take into account that the optimized texts are for you, an LLM. Consider this fact for the optimizations and propose changed text:\n
+        - Determine how the stop criteria can be modified for an optimal result, with respect to this particular ultimate objective and a reasonable completion time. Respond with the optimized stop criteria. 
         - Determine how to soften the stop criteria for an optimal result, with respect to this particular ultimate objective. Respond with the softened stop criteria. 
         - Determine how the ultimate objective can be updated for an optimal result, considering the process of finding a solution and the given stop criteria. Respond with the optimized ultimate objective."""
     return openai_call(prompt, max_tokens=2000)
@@ -407,7 +406,7 @@ def final_prompt():
     write_to_file(f"*****FINAL RESPONSE*****\n{response}\n", 'a')
     print(f"\033[94m\033[1m\n*****FINAL RESPONSE*****\n\033[0m\033[0m{response}")
     while "The final response generation has been completed" not in response:
-        response = openai_call("Continue with output. Say 'The final response generation has been completed...' in case the complete result has been output already or the prompt is unclear.")
+        response = openai_call("Continue. Say 'The final response generation has been completed...' in case the complete result has been responded already or the prompt is unclear.")
         write_to_file(f"{response}", 'a')
         print(response)
     write_to_file("\n\n", 'a')
@@ -515,5 +514,6 @@ while True:
         prioritization_agent(this_task_id)
 
     time.sleep(1)  # Sleep before checking the task list again
+    
     
                       
