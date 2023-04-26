@@ -409,10 +409,11 @@ def internet_research(topic: str, num_results=5, num_pages=1):
     toplist_result, page_content, links = get_toplist(topic, YOUR_GOOGLE_API_KEY, YOUR_SEARCH_ENGINE_ID, num_results, num_pages)
     if toplist_result == []:
         toplist_result = "\n *** No data returned from Google custom search API... ***\n"
-    else:
-        print(f"\nGoogle search top results: {str(toplist_result)}")
-        print(f"\nTop web page content: {str(page_content)}")
+
+    #print(f"\nGoogle search top results: {str(toplist_result)}")
+    #print(f"\nTop web page content: {str(page_content)}")
     return toplist_result, page_content
+
 
 # Evaluate feasibility of the objective with given stop criteria and make proposals for optimization
 print(f"\n\033[90m\033[1m*****FEASIBILITY EVALUATION*****\033[0m\033[0m\n{assess_objective()}")
