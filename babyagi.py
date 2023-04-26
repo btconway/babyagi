@@ -137,6 +137,14 @@ def check_trigger():
                 return False
     except:
         return False
+    
+
+# Check if internet access is available
+def check_internet():
+    if YOUR_GOOGLE_API_KEY == "" or YOUR_SEARCH_ENGINE_ID == "":
+        return False
+    else:
+        return True
 
 
 # Print and write to file OBJECTIVE, STOP_CRITERIA and INITIAL_TASK
@@ -181,7 +189,7 @@ def openai_call(
     prompt: str,
     model: str = OPENAI_API_MODEL,
     temperature: float = OPENAI_TEMPERATURE,
-    max_tokens: int = 100,
+    max_tokens: int = 200,
 ):
     while True:
         try:
@@ -250,7 +258,7 @@ def openai_call(
 
 # Create new tasks with reasoning for stop criteria and calculation of last task's result contribution to objective
 def task_creation_agent(
-    objective: str, result: Dict, task_description: str, task_list: List[str], threshold: int
+    objective: str, result: Dict, task_description: str, task_list: List[str], threshold: int, internet: bool
 ):
     prompt = f"""
     You are a task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective},
@@ -258,14 +266,16 @@ def task_creation_agent(
     This result was based on this task description: {task_description}. These are incomplete tasks: {', '.join(task_list)}\n 
     Take into account the stop criteria. When it is met for the objective, and only then, create one new task with only content 'Stop criteria has been met...'. 
     Here is the stop criteria: {STOP_CRITERIA}\n
-    Consider the plausibilization value, which is the sum of the contribution values of all completed tasks, to determine if the objective has been achieved. The contribution value in percentage with range 100 to 0 is transfered to the range 1 to 0, meaning for example 50% is 0.5. 
-    The plausibilization value shall supplement the confidence level regarding achievement of objective. Consider that each task's contribution helps, step by step, to achieve the objective. Consider this as supplement, when determining if the stop criteria is met for the objective.
-    This is the overall plausibilization value: {plausi_counter}\n
+    Consider the plausibilization value, which is the sum of the contribution values of all completed tasks, to determine if the objective has been achieved. The contribution value in percentage with range 100 to 0 is transfered to the range 1 to 0, for example 50% is 0.5. 
+    The plausibilization value shall serve, in parallel to the stop criteria, to determine how close the achievement of the objective is. 
+    Consider that each task's contribution helps, step by step, to achieve the objective. If enough tasks contribute to the objective, it is achieved.
+    Determine a number for this threshold, based on the expected number of tasks required to achieve the objective. When the plausibilization value is greater than this threshold, the objective is achieved and the stop criteria shall be considered met. 
+    This is the plausibilization value: {plausi_counter}\n
     Based on the result, create new tasks to be completed by the AI system that do not overlap with incomplete tasks. 
     Your aim is to create as few new tasks as possible to achieve the objective. Do make sure that new tasks are properly verbalized and optimal for prompting a large language model like you. 
-    If {YOUR_GOOGLE_API_KEY} is {""} or {YOUR_SEARCH_ENGINE_ID} is {""}, internet search is not possible. This must be considered for creation of new tasks, no new tasks including, refering to or dealing with internet search shall be created.
+    If the internet search flag {internet} is set to False, internet search is not possible. Consider this for creation of new tasks so that no new tasks including, refering to or dealing with internet search are created. 
     Return the tasks as an array.\n\n
-    Also evaluate the last completed task result regarding contribution to the objective, 0 means no contribution and 100 means objective achieved. 
+    Also determine the last completed task result's contribution to the objective, 0 means no contribution and 100 means objective achieved. 
     If there is any contribution at all, assign a number greater than 0. Do your best to determine a value so that the contribution is not unclear. 
     Respond with 'Contribution [%]: ' followed by the contribution. If the contribution cannot be determined, respond with 'Contribution [%]: unclear'. 
     Output the contribution in one line, and only one line. Output the contribution at the end of the response. 
@@ -302,8 +312,8 @@ def prioritization_agent(this_task_id: int):
     You are a task prioritization AI tasked with cleaning the formatting of and reprioritizing the following tasks: {task_names}\n
     Consider the ultimate objective of your team of agent functions: {OBJECTIVE}\n
     Your aim is to prioritize the task list in a way that the ultimate objective is achieved with as few tasks as possible, and that the most relevant tasks are completed first. 
-    Consider the order of the task list, with respect to which task depends on which, the importance and the order of creation, for the task list prioritization process.
-    When continuous research on a subject area proves inconclusive or the subject area been sufficiently researched already, switch to an older incomplete task from the task list dealing with a differing subject area.\n
+    Optimize the task prioritization based on which task depend on which, the different importance of the tasks and the order of creation.
+    When continuous research on a subject area proves inconclusive or the subject area has been sufficiently researched, switch to an older incomplete task from the task list dealing with a differing subject area.\n
     Do not remove any tasks. Only remove a task if it does not contribute to the ultimate objective any longer, in this case rearrange the task list accordingly. Return the result as a numbered list, like:\n
     1. Description of first task
     2. Description of second task
@@ -346,11 +356,11 @@ def execution_agent(objective: str, task: str, internet: bool) -> str:
     prompt = f"""
     You are a task execution AI who performs one task based on the following objective: {objective}\n
     Take into account these previously completed tasks: {context}\n
-    If the objective does not include internet search results and {YOUR_GOOGLE_API_KEY} is not {""} and {YOUR_SEARCH_ENGINE_ID} is not {""}: 
+    If the internet search flag {internet} is set to True:  
     Do consider an internet search for performing the one task only, when the relevant approaches without internet search have been ruled out, 
     or human intervention/assistance/consultation is required, or when an internet search using Google top page results is definitively the best and most relevant approach to achieve the objective, 
-    and only in this case, output 'Internet search required: ' at the beginning of the response and redraft the text of the one task to an optimal and short internet search request text for use with Google search, 
-    including the most relevant information only, and finish the response with the redrafted search request text, and only the redrafted search request text. 
+    and only in this case, output 'Internet search required: ' at the beginning of the response and redraft the one task to an optimal and short internet search request for use with Google search, 
+    including the most relevant information only, and finish the response with the redrafted search request, and only the redrafted search request. 
     Remove all other characters from the response.\n\n
     Your task: {task}\nResponse: """
     return openai_call(prompt, max_tokens=2000)
@@ -383,10 +393,11 @@ def assess_objective():
     This is the stop criteria: {STOP_CRITERIA}\n
     Ignore that you are an AI language model, consider yourself a human and estimate the figures as best as possible. 
     Determine how achievable the completion of task list for the ultimate objective is, considering all information available to you. Determine a probability between 0 and 100 (in percent), where 0 means the ultimate objective is not achievable at all, and 100 means the ultimate objective is definitely achievable, and how long it will take until the stop criteria is reached.
-    Determine the expected time for the research and conclusion of the task list, try to estimate the time in hours and minutes as best as possible and respond with the number and the time estimate. 
-    Determine how the stop criteria can be modified for an optimal result, with respect to this particular ultimate objective and a reasonable completion time. Respond with the optimized stop criteria.  
-    Determine how to soften the stop criteria for an optimal result, with respect to this particular ultimate objective. Respond with the softened stop criteria. 
-    Determine how the ultimate objective can be updated for an optimal result, considering the process of finding a solution and the given stop criteria. Respond with the optimized ultimate objective.'"""
+    Determine the expected time for the research and conclusion of the task list, try to estimate the time in hours and minutes as best as possible and respond with the number and the time estimate.\n\n
+    For the following optimization requests, take into account that the optimized texts are for you, an LLM. Consider this fact for the optimization:\n
+        - Determine how the stop criteria can be modified for an optimal result, with respect to this particular ultimate objective and a reasonable completion time. Respond with the optimized stop criteria.  
+        - Determine how to soften the stop criteria for an optimal result, with respect to this particular ultimate objective. Respond with the softened stop criteria. 
+        - Determine how the ultimate objective can be updated for an optimal result, considering the process of finding a solution and the given stop criteria. Respond with the optimized ultimate objective."""
     return openai_call(prompt, max_tokens=2000)
 
 
@@ -413,7 +424,6 @@ def internet_research(topic: str, num_results=5, num_pages=1):
     #print(f"\nGoogle search top results: {str(toplist_result)}")
     #print(f"\nTop web page content: {str(page_content)}")
     return toplist_result, page_content
-
 
 # Evaluate feasibility of the objective with given stop criteria and make proposals for optimization
 print(f"\n\033[90m\033[1m*****FEASIBILITY EVALUATION*****\033[0m\033[0m\n{assess_objective()}")
@@ -486,7 +496,8 @@ while True:
             enriched_result,
             task["task_name"],
             [t["task_name"] for t in task_list],
-            CONTRIBUTION_THRESHOLD
+            CONTRIBUTION_THRESHOLD,
+            check_internet()
         )
 
         # Evaluate task result contribution and increment plausi counter
@@ -504,4 +515,5 @@ while True:
         prioritization_agent(this_task_id)
 
     time.sleep(1)  # Sleep before checking the task list again
+    
                       
