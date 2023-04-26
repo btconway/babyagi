@@ -57,14 +57,10 @@ def extract_relevant_content(url):
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-
-            # Entferne irrelevante Bereiche wie Navigation, Footer, Skripte und unsichtbare Elemente
             for tag in soup(['script', 'style', 'nav', 'footer', 'head', 'link', 'meta', 'noscript']):
                 tag.decompose()
 
-            # Prüfe auf Hauptinhalt in den typischen Tags
-            main_content_areas = soup.find_all(['main', 'article', 'section', 'div'])
-            
+            main_content_areas = soup.find_all(['main', 'article', 'section', 'div'])     
             if main_content_areas:
                 main_content = max(main_content_areas, key=lambda x: len(x.text))
                 content_tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
@@ -72,7 +68,6 @@ def extract_relevant_content(url):
             else:
                 content = ' '.join([tag.text for tag in soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])])
 
-            # Entferne zusätzliche Leerzeichen und Zeilenumbrüche
             content = re.sub(r'\t', ' ', content)
             content = re.sub(r'\s+', ' ', content)
             content = re.sub(r'\n', ' ', content)
