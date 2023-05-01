@@ -7,9 +7,10 @@ from typing import Dict, List
 import importlib
 import openai
 import pinecone
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 from extensions.google_search import get_toplist
+from datetime import datetime, timedelta
 
 
 # Load default environment variables (.env)
@@ -43,11 +44,18 @@ assert (
 YOUR_TABLE_NAME = os.getenv("TABLE_NAME", "")
 assert YOUR_TABLE_NAME, "TABLE_NAME environment variable is missing from .env"
 
-# Goal configuation
+# Parameter configuation
 OBJECTIVE = os.getenv("OBJECTIVE", "")
 STOP_CRITERIA = os.getenv("STOP_CRITERIA", "")
-PLAUSI_NUMBER = os.getenv("PLAUSI_NUMBER", "")
+SAFETY_THRESHOLD = os.getenv("SAFETY_THRESHOLD", "")
+PROBABILITY_THRESHOLD = os.getenv("PROBABILITY_THRESHOLD", "")
+PROBABILITY_HIGHSCORE = os.getenv("PROBABILITY_HIGHSCORE", "")
 CONTRIBUTION_THRESHOLD  = os.getenv("CONTRIBUTION_THRESHOLD", "")
+STORED_CONTRIBUTION = os.getenv("STORED_CONTRIBUTION", "")
+STORED_PLAUSIBILITY = os.getenv("STORED_PLAUSIBILITY", "")
+STORED_PROBABILITY = os.getenv("STORED_PROBABILITY", "")
+STORED_HIGHSCORE = os.getenv("STORED_HIGHSCORE", "")
+STORED_RUNTIME = os.getenv("STORED_RUNTIME", "")
 FINAL_PROMPT = os.getenv("FINAL_PROMPT", "")
 INITIAL_TASK = os.getenv("INITIAL_TASK", os.getenv("FIRST_TASK", ""))
 
@@ -112,12 +120,13 @@ def check_file():
     try:
         with open('task_list.txt', 'r') as f:
             lines = f.readlines()
-            if OBJECTIVE in lines[1]:
-                return 'a'
-            else:
-                return 'w'
+            for l in lines:
+                if OBJECTIVE in l:
+                    return 'a', float(STORED_CONTRIBUTION), float(STORED_PLAUSIBILITY), float(STORED_PROBABILITY), int(STORED_HIGHSCORE), STORED_RUNTIME
+                else:
+                    return 'w', 0.0, 0.0, 0.0, 0, "00:00:00"
     except:
-        return 'w'
+        return 'w', 0.0, 0.0, 0.0, 0, "00:00:00"
         
 
 # Write output to file
@@ -131,24 +140,44 @@ def check_trigger():
     try:
         with open('trigger.txt', 'r') as f:
             lines = f.readlines()
+            if (lines[0].strip() == 'FINAL STOP'):
+                return "FINAL STOP"
             if (lines[0].strip() == 'STOP'):
-                return True
+                return "STOP"
             else:
-                return False
+                return "NO TRIGGER"
     except:
-        return False
+        return "ERROR"
     
 
-# Check if internet access is available
-def check_internet():
-    if YOUR_GOOGLE_API_KEY == "" or YOUR_SEARCH_ENGINE_ID == "":
-        return False
-    else:
+# Check if Google custom search API keys are setup
+def check_google_keys():
+    if YOUR_GOOGLE_API_KEY and YOUR_SEARCH_ENGINE_ID:
         return True
+    else:
+        return False
 
 
-# Print and write to file OBJECTIVE, STOP_CRITERIA and INITIAL_TASK
-write_to_file(f"*****OBJECTIVE*****\n{OBJECTIVE}\n\n*****STOP CRITERIA*****\n{STOP_CRITERIA}\n\nInitial task: {INITIAL_TASK}\n\n", check_file())
+# Counter for calculation of overall achievement data (in percentage*0.01) and runtime
+contribution_counter = 0.0
+plausibility_counter = 0.0
+probability_counter = 0.0
+probability_highscore = 0   # highscore as integer (number of task >= PLAUSIBILITY_THRESHOLD)
+mode, contribution_counter, plausibility_counter, probability_counter, probability_highscore, stored_runtime = check_file()
+hours, minutes, seconds = map(int, stored_runtime.split(':'))
+runtime_seconds = timedelta(hours=hours, minutes=minutes, seconds=seconds).total_seconds()
+start_time = time.time() - runtime_seconds
+
+# Clear evaluation counters in environment file
+if mode == 'w':
+    set_key(".env", "STORED_CONTRIBUTION", "0.0")
+    set_key(".env", "STORED_PLAUSIBILITY", "0.0")
+    set_key(".env", "STORED_PROBABILITY", "0.0")
+    set_key(".env", "STORED_HIGHSCORE", "0.0")
+    set_key(".env", "STORED_RUNTIME", "00:00:00")
+
+# Print OBJECTIVE, STOP_CRITERIA, INITIAL_TASK and setup plausibilization/contribution variables
+write_to_file(f"*****OBJECTIVE*****\n{OBJECTIVE}\n\n*****STOP CRITERIA*****\n{STOP_CRITERIA}\n\nInitial task: {INITIAL_TASK}\n", mode)
 print(f"\033[94m\033[1m\n*****OBJECTIVE*****\n\033[0m\033[0m{OBJECTIVE}")
 print(f"\033[91m\033[1m\n*****STOP CRITERIA*****\n\033[0m\033[0m{STOP_CRITERIA}")
 print(f"\033[93m\033[1m\nInitial task:\033[0m\033[0m {INITIAL_TASK}")
@@ -258,68 +287,67 @@ def openai_call(
 
 # Create new tasks with reasoning for stop criteria and calculation of last task's result contribution to objective
 def task_creation_agent(
-    objective: str, result: Dict, task_description: str, task_list: List[str], threshold: int, internet: bool
+    objective: str, result: Dict, task_description: str, task_list: List[str]
 ):
     prompt = f"""
-    You are a task creation AI that uses the result of an execution agent to create new tasks with the following objective: {objective}. 
-    The last completed task has the result: {result}, based on this task description: {task_description}. Incomplete tasks: {', '.join(task_list)}.
-    Take into account the stop criteria: {STOP_CRITERIA}.\n
-    Create a new task with the content 'Stop criteria has been met...' only when the stop criteria is met for the objective.
-    Consider the plausibilization value, which is the sum of the contribution values of all completed tasks, to determine if the objective has been achieved. 
-    The contribution value, in percentage ranging from 0 to 100, is transferred to a range of 0 to 1 (e.g., 50% is 0.5). 
-    The plausibilization value is: {plausi_counter}.\n
-    If the plausibilization value is greater than the threshold, the objective is achieved, and the stop criteria is considered met.
-    Based on the result, create new tasks that don't overlap with incomplete tasks. Your aim is to create as few new tasks as possible to achieve the objective. 
-    Ensure that new tasks are properly verbalized and optimal for prompting a large language model like yourself.
-    If the {internet} variable is set to FALSE, internet searches are not possible for creating new tasks. Make sure that the new tasks created do not involve, refer to, or deal with internet searches.
-    Return the tasks as an array.\n
-    Also, determine the last completed task result's contribution to the objective, ranging from 0 (no contribution) to 100 (objective achieved). 
-    If there's any contribution at all, assign a number greater than 0. 
-    Do your best to determine a value so that the contribution is not unclear. Respond with 'Contribution [%]: ' followed by the contribution. 
-    If the contribution cannot be determined, respond with 'Contribution [%]: unclear'. Output the contribution in one line, and only one line. Output the contribution at the end of the response.
-    If the contribution is smaller than {threshold} and not unclear, create new tasks for a different subject area than the subject area the last completed task dealt with.
+    You are a task creation AI that uses the result of the last completed task to create new tasks with the objective: {objective}
+    The last completed task has the result: {result}, based on this task description: {task_description}
+    Incomplete tasks: {', '.join(task_list)}.
+    Take into account the stop criteria: {STOP_CRITERIA}
+
+    Create new tasks without overlapping with incomplete tasks and with as few tasks as possible to achieve the objective, and consider that they are for a large language model as yourself.
+
+    Take into account the stop criteria. If it is met, create a new task with only content 'Stop criteria has been met...'.
+
+    Return all the new tasks, with one task per line in your response. Do not follow your response with any other output. Do not display information from metadata in output.
+    
+    The result must be a numbered list in the format:
+    #. First task
+    #. Second task
+    #. ...
     """
     response = openai_call(prompt)
     new_tasks = response.split("\n") if "\n" in response else [response]
-
-    # Remove the contribution output from new tasks
-    for n in new_tasks:
-        if "Contribution [%]:" in n:
-            new_tasks.remove(n)
-            break
-
-    # Get the contribution value
-    line = response.split("\n")
-    contribution = -1
-    for l in line:
-        if "Contribution" in l:
-            try:
-                contribution = int(l.split(": ")[1])
-                break
-            except (ValueError, IndexError):
-                contribution = -1
-    #print(f"\nContribution of last task result: {contribution}%")
-    return [{"task_name": task_name} for task_name in new_tasks], contribution
+    return [{"task_name": task_name} for task_name in new_tasks]
 
 
 # Prioritize the task list
-def prioritization_agent(this_task_id: int):
+def prioritization_agent(this_task_id: int, threshold: float):
     global task_list
     task_names = [t["task_name"] for t in task_list]
     next_task_id = int(this_task_id) + 1
     prompt = f"""
-    You are a task prioritization AI responsible for cleaning the formatting of and reprioritizing the following tasks: {task_names}.\n
-    Consider the ultimate objective of your team of agent functions: {OBJECTIVE}.\n
-    Your goal is to prioritize the task list so that the ultimate objective is achieved with as few tasks as possible, completing the most relevant tasks first. 
-    Optimize task prioritization based on task dependencies, importance, and order of creation.
-    Switch to an older incomplete task from the task list dealing with a different subject area if continuous research on a subject area proves inconclusive or has been sufficiently researched.
-    Do not remove any tasks unless they no longer contribute to the ultimate objective. In that case, rearrange the task list accordingly. 
-    Return the result as a numbered list, starting with number {next_task_id}, like:\n
-    1. Description of first task
-    2. Description of second task
-    3. Description of third task
-    4. ...\n
-    Start the task list with number {next_task_id}."""
+    You are an AI that cleans and prioritizes tasks based on their relevance to the objective: {OBJECTIVE}
+
+    Tasks: {task_names}
+    Next task ID: {next_task_id}
+    Threshold: {threshold}
+
+    Tasks should be sorted from highest to lowest priority. 
+    Higher-priority tasks are those that act as pre-requisites or are more essential for meeting the objective.
+    If the last completed task's contribution is below {threshold} and clear, suggest new tasks in a different subject area.
+
+    Consider the task metadata and prioritize tasks to meet the objective efficiently, taking into account task dependencies, task relevance and other factors derived from the metadata:
+
+    1. "contribution": level of contribution of the task to the objective (0.0 to 1.0)
+    2. "difficulty": level of difficulty of the task (0.0 to 1.0)
+    3. "plausibility": level of plausibility of the task with respect to other information available (0.0 to 1.0)
+    4. "probability": level of probability of the task to achieve the objective (0.0 to 1.0)
+    5. "num_tokens": number of tokens for the response to the task
+    6. "categories": categories regarding the topics in content of task
+    7. "keywords": keywords derived from content of the task
+    
+    Do not remove tasks. Rearrange tasks as needed.
+    
+    Return a numbered list starting with {next_task_id}:
+    #. First task
+    #. Second task
+    #. ...
+
+    The entries are consecutively numbered, starting with 1. The number of each entry must be followed by a period.
+    Do not include any headers before your numbered list. Do not follow your numbered list with any other output.
+    Do not display information from metadata in numbered list. If metadata information is included in the the content of a task, delete it.
+    """
     response = openai_call(prompt)
     new_tasks = response.split("\n") if "\n" in response else [response]
     task_list = deque()
@@ -346,6 +374,9 @@ def execution_agent(objective: str, task: str, internet: bool) -> str:
 
     """
     context = context_agent(query=objective, top_results_num=5)
+    if task == INITIAL_TASK and initial_plan != "":
+        context.append(initial_plan)
+
     if internet == True:
         print(f"\033[93m\033[1m\n*****TASK RESULT (WITH INTERNET RESEARCH)*****\033[0m\033[0m")
         write_to_file(f"\n*****TASK RESULT (WITH INTERNET RESEARCH)*****\n", 'a')
@@ -354,19 +385,17 @@ def execution_agent(objective: str, task: str, internet: bool) -> str:
         write_to_file(f"*****RELEVANT CONTEXT*****\n{context}\n", 'a')
 
     prompt = f"""
-    You are a task execution AI performing one task based on the following objective: {objective}.\n 
+    You are a task execution AI performing one task based on the following objective: {objective}\n 
     Consider these previously completed tasks: {context}.\n
-    Perform an internet search for the task only if relevant approaches without internet search have been ruled out, human intervention/assistance/consultation is required, 
-    or a Google top page results search is the best and most relevant approach to achieve the objective.
-    If the {internet} variable is set to TRUE:
-        - If an internet search is required, respond with 'Internet search required: ' at the beginning of the response. 
-        Redraft the task as an optimal, short internet search request for Google search, including only the most relevant information. 
-        End the response with the redrafted search request, removing all other characters.
-    If the {internet} variable is set to FALSE:
-        - If an internet search is required, redraft the task as an optimal, short internet search request for Google search, including only the most relevant information. 
-        Add 'Google search proposal: ' at the end of the response in a new line, and finish the response with the redrafted search request.\n
-    Your task: {task}\nResponse:
-"""
+    Your task: {task}
+
+    Do your best to complete the task, which means to provide a useful answer for a human, responding with the task content itself, a variation of it or vague suggestions, is not useful as well.
+    In case you are not able to determine an useful answer, assume that internet search is required and verbalize the reason.
+
+    First, respond as instructed above.
+
+    Next, if the task is not completed or internet search is required to complete the task, respond with 'Internet search request: ' and redraft the task to an optimal short internet search request.
+    """
     return openai_call(prompt, max_tokens=2000)
 
 
@@ -390,65 +419,248 @@ def context_agent(query: str, top_results_num: int):
     return [(str(item.metadata["task"])) for item in sorted_results]
 
 
+# Get the contribution of the last completed task result
+def result_eval_agent(result: str, contribution_counter: float, plausibility_counter: float, probability_counter: int, probability_highscore: int):
+    prompt = f"""
+    You are an AI that evaluates the contribution of a task result to the objective.
+
+    Task result: {result}
+    Objective: {OBJECTIVE}
+
+    If the task result includes a list of tasks, determine the following values for the list as a whole and respond for the whole list.
+
+    First, determine the task result's contribution to the objective, ranging from 0.0 (no contribution) to 1.0 (objective achieved), without any unit.
+
+    Respond with 'Contribution: ' followed by the number if the contribution is clear, otherwise 'Contribution: unclear' and do not respond with anything else.
+
+    Next, determine the rating of the task result, ranging from 0.0 (very easy) to 1.0 (very difficult), without any unit.
+    Try your best to evalaute a rating and assign a number even or greater than 0.0.
+
+    Respond with 'Difficulty: ' followed by the number if the difficulty is clear, otherwise 'Difficulty: unclear' and do not respond with anything else.
+
+    Next, determine the plausibility of the task result, with respect to other information available, ranging from 0.0 (very unplausible) to 1.0 (very plausible), without any unit. If there's any plausibility at all, assign a number greater than 0.0.
+
+    Respond with 'Plausibility: ' followed by the number if the plausibility is clear, otherwise 'Pausibility: unclear' and do not respond with anything else.
+
+    Next, determine the task result's probability to meet the objective. The range is from 0.0 (very far away) to 1.0 (objective met), without any unit.
+
+    Respond with 'Probability: ' followed by the number if the probability is clear, otherwise 'Probability: unclear'. And do not respond with anything else.
+
+    Next, determine the up to 3 most relevant categories regarding the task result.
+
+    Respond with 'Categories: ' followed by the categories.
+
+    Next, determine up to 5 most relevant keywords of the task result.
+
+    Respond with 'Keywords: ' followed by the keywords.
+    """
+    response = openai_call(prompt)
+    lines = response.split("\n")
+    contribution = -2.0
+    difficulty = -2.0
+    plausibility = -2.0
+    categories = ""
+    keywords = ""
+    probability = -2.0
+    for l in lines:
+        # Get the contribution value
+        if "Contribution" in l:
+            try:
+                contribution = float(l.split(": ")[1])
+            except (ValueError, IndexError):
+                contribution = -1.0
+
+        # Get the difficulty value
+        if "Difficulty" in l:
+            try:
+                difficulty = float(l.split(": ")[1])
+            except (ValueError, IndexError):
+                difficulty = -1.0
+
+        # Get the plausibility value
+        if "Plausibility" in l:
+            try:
+                plausibility = float(l.split(": ")[1])
+            except (ValueError, IndexError):
+                plausibility = -1.0
+
+        # Get the probability value
+        if "Probability" in l:
+            try:
+                probability = float(l.split(": ")[1])
+            except (ValueError, IndexError):
+                probability = -1.0
+
+        # Get the categories
+        if "Categories" in l:
+            try:
+                categories = l.split(": ")[1]
+            except (ValueError, IndexError):
+                categories = str("")
+
+        # Get the keywords
+        if "Keywords" in l:
+            try:
+                keywords = l.split(": ")[1]
+            except (ValueError, IndexError):
+                keywords = str("")
+        #print(f"\nl: {l}")
+
+    # Update evaluation counters
+    if contribution > 0 and contribution <= 100:
+        contribution_counter += contribution
+        set_key(".env", "STORED_CONTRIBUTION", str(contribution_counter))
+
+    if plausibility > 0 and plausibility <= 100:
+        plausibility_counter += plausibility
+        set_key(".env", "STORED_PLAUSIBILITY", str(plausibility_counter))
+
+    if probability > 0 and probability <= 100:
+        probability_counter += probability
+        set_key(".env", "STORED_PROBABILITY", str(probability_counter))
+
+    if probability >= float(PROBABILITY_THRESHOLD):
+        probability_highscore += 1
+        set_key(".env", "STORED_HIGHSCORE", str(probability_highscore))
+    
+    # Print metadata to terminal
+    print(f"\n{response}")
+    #write_to_file(f"{response}\n", 'a')
+
+    # Debug output
+    #print(f"Probability Value: {probability}")
+    #print(f"\nLines: {lines}")
+    return contribution, difficulty, plausibility, probability, probability_highscore, categories, keywords, contribution_counter, plausibility_counter, probability_counter
+    
+
+# Assess the objective, stop criteria, and final prompt
 def assess_objective():
     prompt = f"""
-    Evaluate the ultimate objective and the stop criteria, which describe the conditions under which the ultimate objective is considered achieved.\n
-    Ultimate objective: {OBJECTIVE}\n
-    Stop criteria: {STOP_CRITERIA}\n
-    Pretend you are a human and estimate the figures as accurately as possible. Determine the achievability of completing the task list for the ultimate objective, 
-    considering all available information. Provide a probability between 0 and 100, where 0 means the ultimate objective is not achievable, 
-    and 100 means it is definitely achievable. Estimate how long it will take to reach the stop criteria.
-    Estimate the expected time to research and complete the task list in hours and minutes, and respond with the number and time estimate.
-    For the following optimization requests, remember that the optimized texts are for you, a Large Language Model. 
-    Consider this fact for the optimizations and propose changed text:
-    1. Suggest modifications to the stop criteria for optimal results, considering this specific ultimate objective and a reasonable completion time. 
-    Respond with the optimized stop criteria.
-    2. Propose a softened version of the stop criteria for optimal results, considering this specific ultimate objective. Respond with the softened stop criteria.
-    3. Suggest updates to the ultimate objective for optimal results, taking into account the process of finding a solution and the given stop criteria. Respond with the optimized ultimate objective.
+    You are an AI that evaluates the objective and stop criteria, used for a task-based AI as goal definitions, and the final prompt which is triggered when the task-based process is finished.
+
+    Objective: {OBJECTIVE}
+    Stop criteria: {STOP_CRITERIA}
+    Final prompt: {FINAL_PROMPT}
+
+    As a human, estimate the following, in short and concisive manner:
+    1. Probability of achieving the objective (0-100%).
+    2. Time to research and complete the task list (in hours and minutes).
+
+    For the following items, also consider that these are prompts for a large language model like yourself, and make drafts:
+    1. Propose an optimal the stop criteria for best results with reasonable completion time.
+    2. Propose an optimal softened version of the stop criteria, considering the task-based AI approach.
+    3. Propose an optimal objective for best results, considering the task-based AI approach.
+    4. Propose an optimal updated version of the final prompt considering the task-based AI approach and the objective.
     """
-    return openai_call(prompt, max_tokens=2000)
+    return openai_call(prompt, max_tokens=200)
+
+
+# Execute the final task
+def final_response(objective: str, task: str, num_token: int) -> str:
+    context = context_agent(query=objective, top_results_num=30)
+    prompt = f"""
+    You are a task execution AI performing one task based on the following objective: {objective}
+
+    Consider these previously completed tasks and include relevant information in the response: {context}
+
+    Your task: {task}
+
+    Response: """
+    return openai_call(prompt, max_tokens=num_token)
 
 
 # Send final prompt and handle final response(s)
 def final_prompt():
-    response = openai_call(f"{FINAL_PROMPT}. The ultimate objective is: {OBJECTIVE}.")
+    response = final_response(OBJECTIVE, FINAL_PROMPT, num_token=2000)
     write_to_file(f"*****FINAL RESPONSE*****\n{response}\n", 'a')
     print(f"\033[94m\033[1m\n*****FINAL RESPONSE*****\n\033[0m\033[0m{response}")
     while "The final response generation has been completed" not in response:
-        response = openai_call("Continue. Say 'The final response generation has been completed...' in case the complete result has been responded already or the prompt is unclear.")
+        response = openai_call("Continue. Respond with 'The final response generation has been completed...', and nothing else, in case the complete result has been responded already or the question is not understood.")
         write_to_file(f"{response}", 'a')
         print(response)
     write_to_file("\n\n", 'a')
-    print("\n***** The ultimate objective has been achieved, the work is done! BabyAGI will take a nap now... *****\n")
+    print("\n***** The objective has been achieved, the work is done! BabyAGI will take a nap now... *****\n")
+
+
+# Send initial prompt with the objective, as guidance for INITIAL_TASK
+def inital_request():
+    response = final_response(OBJECTIVE, FINAL_PROMPT, num_token=1000)
+    prompt = f"""
+    You are an AI that determines supporting information to support a following task-based AI in setting up a task list for the objectice.
+    This is the objective: {OBJECTIVE}
+
+    Consider the given response on the objective, revealing relevant information, related topics, subject areas for research, answers for the objective, difficulties in finding an answer, and more. Determine the relevant information. Do not compile a task list, but suggest supporting information for the task-based AI to compile an optimal task list.
+    This is the response: {response}
+
+    Consider that the supporting information is for a large language model like yourself and verbalize in short and concisive manner.
+
+    Determine supporting information to optimally support the creation of a task list by the task-based AI.
+
+    Respond with the initial plan: 
+    """
+    return openai_call(prompt, max_tokens=500)
 
 
 # Provide internet access via Google API, using google_search.py, and summary of results from snippets
 # max value for num_results is 10 (results per page)
-def internet_research(topic: str, num_results=5, num_pages=1):
-    toplist_result, page_content, links = get_toplist(topic, YOUR_GOOGLE_API_KEY, YOUR_SEARCH_ENGINE_ID, num_results, num_pages)
+def internet_research(topic: str, num_results, num_pages, num_extracts: int):
+    toplist_result, page_content, links = get_toplist(topic, YOUR_GOOGLE_API_KEY, YOUR_SEARCH_ENGINE_ID, num_results, num_pages, num_extracts)
     if toplist_result == []:
-        toplist_result = "\n *** No data returned from Google custom search API... ***\n"
+        toplist_result = "\n *** No data returned from Google custom search API... ***"
 
-    #print(f"\nGoogle search top results: {str(toplist_result)}")
-    #print(f"\nTop web page content: {str(page_content)}")
+    print(f"\nGoogle search top results:\n{str(toplist_result)}")
+    for i in range(num_extracts):
+        print(f"\nWebpage content ({str(links[i])}):\n{str(page_content[i])}")
     return toplist_result, page_content
 
-# Evaluate feasibility of the objective with given stop criteria and make proposals for optimization
-print(f"\n\033[90m\033[1m*****FEASIBILITY EVALUATION*****\033[0m\033[0m\n{assess_objective()}")
-write_to_file(f"*****FEASIBILITY EVALUATION*****\n{assess_objective()}\n\n", 'a')
+
+# Check if google needs to be accessed, based on the the text in last completed task result
+def check_search_request(result: str):
+    lines = result.split("\n")
+    search_request = str("")
+    #print(f"All lines: {lines}\n")
+    for l in lines:
+        #print(f"Line: {l}")
+        if "Internet search request:" in l:
+            search_request = l.split(": ")[1]
+            #print(f"Request: {search_request}")
+        elif (str(task["task_name"]) or "researching" or "consulting" or "I will" or "I'm sorry, " or "need more information") and "Keywords:" in l and ("Task List:" or "Task list:" or "task list:") not in l:
+            search_request = l.split("Keywords: ")[1].split(")")[0]
+        else:
+            search_request = str("")
+
+    # Check if google needs to and can be accessed
+    if search_request and check_google_keys():
+        print(f"{result}")
+        write_to_file(f"{result}\n", 'a')
+        print("Accessing Google custom search API...")
+        write_to_file(f"Accessing Google custom search API...\n", 'a')
+        num_extracts = 3
+        toplist, webpages = internet_research(str(search_request), num_results=10, num_pages=1, num_extracts=3)
+        updated_task = "This is the previous task: " + str(task["task_name"]) + "\nInternet research has been performed for the previous task with the following request: " + search_request + f"\nResult from Google search top list: {str(toplist)}\nContent of top {num_extracts} webpage: {webpages}\nTake into account that not all the information from internet research might be relevant for the task. Evaluate which information is relevant and which is not and complete the task accordingly, considering also other information available than the internet research, and respond again on the previous task."
+        #print(f"\nUpdated Task:\n{str(updated_task)}")
+        result = execution_agent(OBJECTIVE, str(updated_task), True) 
+    return result
+
+
+# Evaluate feasibility for the objective with given stop criteria and make proposals for optimization
+text = assess_objective()
+print(f"\n\033[90m\033[1m*****FEASIBILITY EVALUATION*****\033[0m\033[0m\n{text}")
+#write_to_file(f"*****FEASIBILITY EVALUATION*****\n{text}\n", 'a')
 
 # Add the first task
 first_task = {"task_id": 1, "task_name": INITIAL_TASK}
 add_task(first_task)
 # Main loop
 task_id_counter = 1
-task_contribution = 0       # Contribution of the task to the ultimate objective as percentage
-plausi_counter = 0.0        # Plausibility counter for the task contribution (in percentage*0.01)
+initial_plan = ""
+initial_plan = inital_request()
+print(f"\033[94m\033[1m\n*****INITAL PLAN*****\n\033[0m\033[0m{initial_plan}")
 while True:
     if task_list:
         # Print the task list
         print("\033[95m\033[1m" + "\n*****TASK LIST*****" + "\033[0m\033[0m")
-        write_to_file("*****TASK LIST*****\n", 'a')
+        write_to_file("\n*****TASK LIST*****\n", 'a')
         for t in task_list:
             print(str(t["task_id"]) + ": " + t["task_name"])
             write_to_file(str(t["task_id"]) + ": " + t["task_name"] + "\n\n", 'a')
@@ -456,8 +668,8 @@ while True:
         # Step 1: Pull the first task
         task = task_list.popleft()
 
-        # Step 2: Check for stop criteria text in task name or (optional) plausi counter overflow
-        if "Stop criteria has been met" in task["task_name"] or (plausi_counter >= float(PLAUSI_NUMBER) and float(PLAUSI_NUMBER) > 0) or check_trigger():
+        # Step 2: Check for stop criterias (LLM reasoning only, or with additional confidence threshold or by manual trigger)
+        if ("Stop criteria has been met" in task["task_name"] or "FINAL STOP" in check_trigger()) or (plausibility_counter >= float(SAFETY_THRESHOLD) and contribution_counter >= float(SAFETY_THRESHOLD) and probability_counter >= float(SAFETY_THRESHOLD) and float(SAFETY_THRESHOLD) > 0.0) or (probability_highscore > int(PROBABILITY_HIGHSCORE) and int(PROBABILITY_HIGHSCORE) > 0):
             final_prompt()
             break
 
@@ -471,56 +683,74 @@ while True:
         write_to_file(f"\n*****TASK RESULT*****\n", 'a')
 
         # Step 4: Check if internet search is required for conclusion of this task (only when Google API key and search engine ID are provided) 
-        if "Internet search required" in result:
-            if (YOUR_GOOGLE_API_KEY == "" or YOUR_SEARCH_ENGINE_ID == ""):
-                print("No search engine access, please provide your Google API key and search engine ID in .env parameters...")
-                write_to_file("No search engine access, please provide your Google API key and search engine ID in .env parameters...\n", 'a')
-            else:
-                search_request = result.split("Internet search required: ")
-                print(f"Internet search: {str(search_request)}.\nAccessing Google search for top results and evaluating task result again...")
-                write_to_file(f"Internet search: {str(search_request)}.\nAccessing Google search for top results and evaluating task result again...\n", 'a')
-                toplist, webpage = internet_research(str(search_request))
-                new_objective = task["task_name"] + "\nGoogle internet research has been performed for the previous described task with the following request: " + result + "\nThis is the result from Google top list: " + str(toplist) + "\nContent of top result webpage: " + webpage + "\nTake into account that not all the information from internet research might be relevant for the task. Evaluate which information is relevant and which is not and complete the task accordingly, considering other information available than the internet research as supplementary."
-                result = execution_agent(OBJECTIVE, str(new_objective), True)
+        result = check_search_request(result)            
         print(f"{result}")
         write_to_file(f"{result}\n", 'a')
 
-        # Step 5: Enrich result with metadata and store in Pinecone
+        # Step 5: Enrich result with metadata and store in Pinecone, after contribution value for the task result has been calculated
+        contribution, difficulty, plausibility, probability, probability_highscore, categories, keywords, contribution_counter, plausibility_counter, probability_counter = result_eval_agent(result, contribution_counter, plausibility_counter, probability_counter, probability_highscore)
+        num_tokens = len(result.split())
         enriched_result = {
-            "data": result
+            "data": result,
+            "contribution": str(contribution),
+            "difficulty": str(difficulty),
+            "plausibility": str(plausibility),
+            "probability": str(probability),
+            "categories": categories,
+            "keywords": keywords,
+            "num_tokens": str(num_tokens)
         }  # This is where you should enrich the result if needed
         result_id = f"result_{task['task_id']}"
         vector = get_ada_embedding(
             enriched_result["data"]
         )  # get vector of the actual result extracted from the dictionary
         index.upsert(
-            [(result_id, vector, {"task": task["task_name"], "result": result})],
+            [(result_id, vector, {
+            "task": task["task_name"],
+            "result": result,
+            "contribution": str(contribution),
+            "plausibility": str(plausibility),
+            "probability": str(probability),
+            "categories": str(categories),
+            "keywords": str(keywords),
+            "num_tokens": str(num_tokens)})],
 	        namespace=OBJECTIVE
         )
 
+        # Calculate runtime
+        elapsed_time = time.time() - start_time
+        hours, remainder = divmod(elapsed_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        timestamp = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+        set_key(".env", "STORED_RUNTIME", timestamp)
+
+        # Print the enriched results
+        print(f"\033[94m\033[1m\n*****STATUS EVALUATION*****\033[0m\033[0m") 
+        print(f"Probability high score (>={float(PROBABILITY_THRESHOLD)*100}%): {probability_highscore} with threshold: {int(PROBABILITY_HIGHSCORE)}")
+        print(f"Contribution counter: {contribution_counter:.2f}, Plausi counter: {plausibility_counter:.2f}, Probability counter: {probability_counter:.2f} with threshold: {SAFETY_THRESHOLD}")
+        print(f"BabyAGI runtime [{timestamp}]")
+        #write_to_file(f"\n*****STATUS EVALUATION*****\nContribution counter: {contribution_counter:.1f}, Plausibility counter: {plausibility_counter:.2f}, Probability counter: {probability_counter:.2f} with threshold: {SAFETY_THRESHOLD} and BabyAGI runtime [{timestamp}]\n", 'a')
+        #write_to_file(f"Probability high score (>={float(PROBABILITY_THRESHOLD)*100}%): {probability_highscore} with threshold: {int(PROBABILITY_HIGHSCORE)}\n", 'a')
+
+        # Check for manual program stop trigger
+        if check_trigger() == "STOP":
+            write_to_file("\n\n", 'a')
+            print("\n***** BabyAGI has been stopped by manual trigger... *****\n")
+            break
+
         # Step 6: Create new tasks, reprioritize task list and calculate contribution value for last task result
-        new_tasks, task_contribution = task_creation_agent(
+        new_tasks = task_creation_agent(
             OBJECTIVE,
             enriched_result,
             task["task_name"],
-            [t["task_name"] for t in task_list],
-            CONTRIBUTION_THRESHOLD,
-            check_internet()
+            [t["task_name"] for t in task_list]
         )
-
-        # Evaluate task result contribution and increment plausi counter
-        if task_id_counter > 2 and task_contribution > 0 and task_contribution <= 100:
-            plausi_counter += (task_contribution*0.01)
-
-        print(f"\033[94m\033[1m\n*****TASK CONTRIBUTION*****\033[0m\033[0m")
-        print(f"Contribution of task result to objective: {task_contribution}% with plausi counter: {plausi_counter} and threshold: {PLAUSI_NUMBER}")  
-        write_to_file(f"\n*****TASK CONTRIBUTION*****\nContribution of task result to objective: {task_contribution}% with plausi counter: {plausi_counter} and threshold: {PLAUSI_NUMBER}\n\n", 'a')
 
         for new_task in new_tasks:
             task_id_counter += 1
             new_task.update({"task_id": task_id_counter})
             add_task(new_task)
-        prioritization_agent(this_task_id)
+        prioritization_agent(this_task_id, CONTRIBUTION_THRESHOLD)
 
     time.sleep(1)  # Sleep before checking the task list again
     
