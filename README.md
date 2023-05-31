@@ -41,6 +41,8 @@ The document embedding LLM has its own model & settings, separate from task proc
 
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-DocEmbedding.jpeg)
 
+Important: The document embedding vector store has to be created and filled with at least one entry, before the document embedding feature is enabled!
+
 ## Automatic appending of web scrape content to document embedding vector store
 The intention behind this functionality is to enhance BabyAGI's a long-term memory and compensate for the context limit. Therefore extended result data gets stored, which can be quite large.
 Beside the LLM powered web scrape result summary, the raw web page scrape content is stored and embedded in vector store.
