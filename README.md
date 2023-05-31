@@ -4,8 +4,8 @@ This is a side branch of BabyAGI with enhancements:
   - Smart internet search extension, based on BabyCatAGI implementation
   - Document embedding extension: Q&A retrieval in langchain using code from the popular repo 'privateGPT'
     - Stand-alone scripts as supplementary tools (ingest.py, scrape.py and qa-retrieval.py)
-  - New: Update of document embedding vector store with complete web page scrape content as optional feature
-  - New: Initial internet topresult search, raw web scrape content extraction and embedding in document vector store
+  - Update of document embedding vector store with complete web page scrape content as optional feature
+  - Initial internet topresult search, raw web scrape content extraction and embedding in document vector store
   - Full Llama support for all functionalities, including smart internet search
   - New: Wikipedia search as smart search supplement or as context for next task
   - Experimental: Report extension for creation of a report (involving supplementary instructions for objective)
@@ -44,7 +44,7 @@ The document embedding LLM has its own model & settings, separate from task proc
 
 Important: The document embedding vector store has to be created and filled with at least one entry, before the document embedding feature is enabled!
 
-## New: Automatic appending of web scrape content to document embedding vector store
+## Automatic appending of web scrape content to document embedding vector store
 The intention behind this functionality is to enhance BabyAGI's a long-term memory and compensate for the context limit. Therefore extended result data gets stored, which can be quite large.
 Beside the LLM powered web scrape result summary, the raw web page scrape content is stored and embedded in vector store.
 The content extraction for the raw scrape data is more strict than the one for result summary creation because the extract must be "clean", hence no incomprehensible data as strings of keywords or characters is included.
@@ -59,7 +59,7 @@ With enabled document embedding extension the updated vector store then provides
 
 Beside the update of embedding vector store above, the extended result data is written to file, serving as backup. The data is stored in folder "scrape_documents". When the vector store is deleted, the "memory" still exists in this file. The file can be used for embedding again using stand-alone script ingest.py (see document embedding extension).
 
-## New: Initial internet search and scrape content embedding in document vector store
+## Initial internet search and scrape content embedding in document vector store
 Optional feature to perform a toplist search and subsequent web page scraping. The scrape results, with strict filtering for human-readable content, then get embedded in document vector store before the task procedure is started.
 
 This shall provide BabyAGI with a preconfigured "memory" of related content and shall help to minimize the need for smart search, since it involves token intensive LLM based scrape result summarization.
