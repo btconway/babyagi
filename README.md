@@ -62,7 +62,7 @@ Beside the update of embedding vector store above, the extended result data is w
 ## Initial internet search and scrape content embedding in document vector store
 Optional feature to perform a toplist search and subsequent web page scraping. The scrape results, with strict filtering for human-readable content, then get embedded in document vector store before the task procedure is started.
 
-This shall provide BabyAGI with a preconfigured "memory" of related content and shall help to minimize the need for smart search, since it involves token intensive LLM based scrape result summarization.
+This shall provide BabyAGI with a preconfigured "memory" of related content and shall help to minimize the need for smart search, since it involves token intensive LLM based scrape result summarization. The manual operation using supplementary scripts scraper.py and ingest.py is automated with this feature.
 
 ## Full Llama support: 100% local operation possible
 By limiting the context size for document embedding, smart search results, etc. and changing the Llama setup a bit, it is possible to have BabyAGI run (mostly) stable with 7B-Llama. It is slower as with OpenAI models, but reasonable (on my MacBook M1 with 16GB RAM).
