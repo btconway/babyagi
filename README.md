@@ -77,7 +77,8 @@ See below some things I did notice during my many hours of testing & tinkering:
     - According to what I could find out Llamas should support a context size of 2048 in general, but I am not sure if this is correct. Works at least with wizardLM-7B and vicuna-7B.
     - Reducing LLAMA_CTX_MAX to 1024 makes the task procedure faster, but responses are getting truncated sometimes
   - The Q&A retrieval with document embedding vector store works best with EMBEDDINGS_CTX_MAX set to 1024. Value of 2048 makes the Q&A retrieval very slow.
-  - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000.
+  - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000 (default is 3000 with OpenAI).
+  - The smart search result summary can get lengthy, depending on the scrape size (SCRAPE_LENGTH) and number of top result web pages to be scraped. There I did limit the top result pages to 1 (default is 3 with OpenAI) and set SCRAPE_LENGTH to 3000 (default is 5000 with OpenAI).
 
 ## Experience and motivation
 The overall speed is a bit slow with a 7B-Llama, but it works. The task processing speed is not so bad at all, what takes time is the summarization of web scrape results, due to the amount of chunks. The smart internet search and document embedding are great improvements in general and help the 7B-Llama not to get stuck. Most important parameter is the context limit (LLAMA_CONTEXT) and token limit (MAX_TOKENS).
