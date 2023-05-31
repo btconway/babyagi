@@ -227,11 +227,11 @@ def process_text(qa_result: str, links: str) -> List[Document]:
     return texts
 
 
-def check_write(file_path: str, input: str, text: str):
+def check_content(file_path: str, input: str, text: str):
     with open(file_path, 'r') as f:
         f.read()
         if input not in f:
-            print(f"Store {text} in Q&A document: {scrape_directory}/qa_memory.txt")
+            print(f"Store {text} in Q&A document: {file_path}")
             return True
         else:
             print(f"{text} already stored in Q&A document.")
@@ -246,7 +246,15 @@ def text_writer(file_path: str, input: str, text: str):
     except:
         mode = 'w'
 
-    write_flag = check_write(file_path, input, text)
+    # Create new files for initial web search & scrape
+    if text == "initial web scrape":
+        mode = 'w'
+
+    if mode == 'a':
+        write_flag = check_content(file_path, input, text)
+    else:
+        write_flag = True
+
     if input and write_flag:
         if input.startswith("As an AI assistant"):
             input = input.split(". ")[1]
@@ -287,7 +295,7 @@ def text_loader(persist_directory: str, qa_result: str, links: str):
             print(f"Document loading & embedding complete! Vectorstore has been updated at: {persist_directory}")
             return True
         else:
-            print("No new results to add to document embeddings")
+            print("No new results to add to document embeddings.")
             return False
     else:
         # Create and store locally vectorstore
