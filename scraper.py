@@ -13,11 +13,9 @@ import os
 import re
 import importlib
 import random
+from newspaper import Article
+import math
 
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36"
-}
 
 USER_AGENTS = [
     {"User-Agent": "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/36.0.1985.143 Safari/537.36 OPR/23.0.1522.60"},  # Opera on Windows
@@ -33,6 +31,14 @@ USER_AGENTS = [
     {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:95.0) Gecko/20100101 Firefox/95.0"},  # Firefox on Windows
     {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:95.0) Gecko/20100101 Firefox/95.0"},  # Firefox on Mac
     {"User-Agent": "Mozilla/5.0 (Linux; Android 11; SM-A205U) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/14.0 Chrome/90.0.4430.210 Mobile Safari/537.36"}  # Samsung Internet on Android
+]
+
+user_agents_list = [
+   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36',
+   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.3 Safari/605.1.15',
+   'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:96.0) Gecko/20100101 Firefox/96.0',
+   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36',
+   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/98.0.1108.43'
 ]
 
 headers = {
@@ -126,7 +132,11 @@ def web_search_tool(query: str, num_extracts: int, mode: str):
         access_counter = 0
         while (access_counter < 3):
             url = f"https://duckduckgo.com/html/?q={query}"
-            browser_header = random.choice(USER_AGENTS)
+            index = math.floor(random.random() * len(user_agents_list))
+            browser_header = {  'User-Agent': user_agents_list[index]   }
+                                #'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3', 
+                                #'accept-encoding': 'gzip, deflate, br', 
+                                #'accept-language': 'en-US,en;q=0.9,en;q=0.8' }
             search_results = requests.get(url, headers=browser_header, timeout=5)
             if search_results.status_code == 200:
                 try:
@@ -190,7 +200,8 @@ def web_scrape_tool(url: str):
     if content is None:
         return None
 
-    text = extract_text(content)
+    #text = extract_text(content)
+    text = extract_text_extended(content)
     print("\033[90m\033[3m" + f"Scraping of {url} completed with length: {len(text)}...\033[0m")
     links = extract_links(content)
     return text, links
@@ -216,6 +227,22 @@ def extract_text(content: str):
     soup = BeautifulSoup(content, "html.parser")
     text = soup.get_text(strip=True)
     return text
+
+
+def extract_text_extended(content: str):
+    soup = BeautifulSoup(content, "html.parser")
+    for script in soup(["script", "style"]):
+        script.decompose()
+
+    text_parts = [tag.get_text(strip=True) for tag in soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'])]
+    return " ".join(text_parts)
+
+
+def extract_text_newspaper3k(url: str):
+    article = Article(url)
+    article.download()
+    article.parse()
+    return article.text
 
 
 def get_sitemap_urls(sitemap_url, web_page: str):
@@ -244,12 +271,16 @@ query = {
     "Llama training with fine-tuning on customer grade computer",
     "7B-Llama fine-tuning with CPU for maximum context size",
     "Python code for Llama fine-tuning"
+    "Setting up a Llama in Python",
+    "How to use Langchain",
+    "LLM training and deployment in Python",
+    "How to use Llama in Python"
     }
 
 # Scrape web pages 2 levels deep and store content in text files
 all_links = []
 for q in query:
-    search_results, links = web_search_tool(query=q, mode="google", num_extracts=5)
+    search_results, links = web_search_tool(query=q, mode="google", num_extracts=10)
 
     for link in links:
         content, lvl2_links = web_scrape_tool(link)
