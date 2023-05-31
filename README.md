@@ -1,8 +1,8 @@
 # BabyAGI-Llama 🦙... runs 100% locally
 
 This is a side branch of BabyAGI with enhancements:
-  - Smart internet search extension, based on BabyCatAGI implementation
-  - Document embedding extension: Q&A retrieval in langchain using code from the popular repo 'privateGPT'
+  - Smart internet search extension, based on BabyCatAGI implementation, with web page scraping and LLM powered results summarization
+  - Document embedding extension: Full integration of Q&A retrieval in langchain using code from the popular repo 'privateGPT'
     - Stand-alone scripts as supplementary tools (ingest.py, scrape.py and qa-retrieval.py)
   - Update of document embedding vector store with complete web page scrape content as optional feature
   - Initial internet topresult search, raw web scrape content extraction and embedding in document vector store
