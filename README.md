@@ -3,12 +3,13 @@
 This is a side branch of BabyAGI with enhancements:
   - Smart internet search extension, based on BabyCatAGI implementation
   - Document embedding extension: Q&A retrieval in langchain using code from the popular repo 'privateGPT'
-    - New: Stand-alone scripts as supplementary tools (ingest.py, scrape.py and qa-retrieval.py)
+    - Stand-alone scripts as supplementary tools (ingest.py, scrape.py and qa-retrieval.py)
   - New: Update of document embedding vector store with complete web page scrape content as optional feature
+  - New: Initial internet topresult search, raw web scrape content extraction and embedding in document vector store
   - Full Llama support for all functionalities, including smart internet search
   - New: Wikipedia search as smart search supplement or as context for next task
-  - Simple print to file functionality for terminal output
   - Experimental: Report extension for creation of a report (involving supplementary instructions for objective)
+  - Simple print to file functionality for terminal output
   - Adding of task information (beside ojective) in query for context agent
   - Enriching of results storage data with document embedding and scrape summary results
   - Various updates for agent prompts, including conditions with instructions for the new extensions
@@ -43,7 +44,7 @@ The document embedding LLM has its own model & settings, separate from task proc
 
 Important: The document embedding vector store has to be created and filled with at least one entry, before the document embedding feature is enabled!
 
-## Automatic appending of web scrape content to document embedding vector store
+## New: Automatic appending of web scrape content to document embedding vector store
 The intention behind this functionality is to enhance BabyAGI's a long-term memory and compensate for the context limit. Therefore extended result data gets stored, which can be quite large.
 Beside the LLM powered web scrape result summary, the raw web page scrape content is stored and embedded in vector store.
 The content extraction for the raw scrape data is more strict than the one for result summary creation because the extract must be "clean", hence no incomprehensible data as strings of keywords or characters is included.
@@ -57,6 +58,11 @@ With enabled document embedding extension the updated vector store then provides
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-Memory.jpeg)
 
 Beside the update of embedding vector store above, the extended result data is written to file, serving as backup. The data is stored in folder "scrape_documents". When the vector store is deleted, the "memory" still exists in this file. The file can be used for embedding again using stand-alone script ingest.py (see document embedding extension).
+
+## New: Initial internet search and scrape content embedding in document vector store
+Optional feature to perform a toplist search and subsequent web page scraping. The scrape results, with strict filtering for human-readable content, then get embedded in document vector store before the task procedure is started.
+
+This shall provide BabyAGI with a preconfigured "memory" of related content and shall help to minimize the need for smart search, since it involves token intensive LLM based scrape result summarization.
 
 ## Full Llama support: 100% local operation possible
 By limiting the context size for document embedding, smart search results, etc. and changing the Llama setup a bit, it is possible to have BabyAGI run (mostly) stable with 7B-Llama. It is slower as with OpenAI models, but reasonable (on my MacBook M1 with 16GB RAM).
@@ -84,6 +90,7 @@ See below some things I did notice during my many hours of testing & tinkering:
   - The Q&A retrieval with document embedding vector store works best with EMBEDDINGS_CTX_MAX set to 1024. Value of 2048 makes the Q&A retrieval very slow.
   - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000 (default is 3000 with OpenAI).
   - The smart search result summary can get lengthy, depending on the scrape size (SCRAPE_LENGTH) and number of top result web pages to be scraped. Therefore I did limit the top result pages to 1 (default is 3 with OpenAI) in code and SCRAPE_LENGTH to 3000 (default is 5000 with OpenAI).
+  - The models and configuration for each LLM (task process, smart search and document embedding) can be setup independently, making it possible to use different Llama's for each funtion.
 
 ## Experience and motivation
 The overall speed is a bit slow with a 7B-Llama, but it works. The task processing speed is not so bad at all, what takes time is the summarization of web scrape results, due to the amount of chunks. The smart internet search and document embedding are great improvements in general and help the 7B-Llama not to get stuck. Most important parameter is the context limit (LLAMA_CONTEXT) and token limit (MAX_TOKENS) in .env file.
@@ -95,6 +102,10 @@ You might ask the question: "Why using a Llama when OpenAI and its excellent mod
 I did tinker a lot with agents like BabyAGI or AutoGPT and its derivates, using mostly gpt-3.5-turbo and rarely gpt-4. But anyhow, with new functions and concepts like smart internet search, involving summarization in chunks by LLM, or document embedding with Q&A retrieval my API rate went ballistic. And that's where I started looking for alternatives. Of course GPT is more powerful and has bigger context length, but using Llamas 100% locally has its own merits...
 
 I am sure I did miss to add some of the new required packages in requirements.txt. Please be advised that you will need to install some libraries manually using "pip install".
+
+## Planned upgrades
+  - Enhancement of report creation extension for full report parsing/changing
+  - Support for GPT4All models for task procedure and smart search LLM's
 
 ************************************************************
 
