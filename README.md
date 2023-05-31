@@ -1,4 +1,4 @@
-# BabyAGI-Llama 🦙... runs 100% locally
+# BabyAGI-🦙... runs 100% locally
 
 This is a side branch of BabyAGI with enhancements:
   - Smart internet search extension, based on BabyCatAGI implementation, with web page scraping and LLM powered results summarization
