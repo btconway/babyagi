@@ -76,7 +76,7 @@ See below some things I did notice during my many hours of testing & tinkering:
     - The parameter LLAMA_CTX_MAX should be set to 2048, with LLAMA_CONTEXT set to 2000. I did split those parameters intentionally (both are related to N_CTX) for better tinkering.
     - According to what I could find out Llamas should support a context size of 2048 in general, but I am not sure if this is correct. Works at least with wizardLM-7B and vicuna-7B.
     - Reducing LLAMA_CTX_MAX to 1024 makes the task procedure faster, but responses are getting truncated sometimes
-  - The Q&A retrieval with document embedding vector store works best with EMBEDDINGS_CTX_MAX set to 1024. Using wizardLM-7B and 2048 makes the Q&A retrieval very slow.
+  - The Q&A retrieval with document embedding vector store works best with EMBEDDINGS_CTX_MAX set to 1024. Value of 2048 makes the Q&A retrieval very slow.
   - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000.
 
 ## Experience and motivation
