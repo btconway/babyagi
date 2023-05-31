@@ -8,7 +8,6 @@ import importlib
 import random
 
 from newspaper import Article
-import math
 
 
 headers = {
@@ -37,7 +36,7 @@ SUMMARY_TEMPERATURE = float(os.getenv("SUMMARY_TEMPERATURE", 0.7))
 
 
 # API function: Search with SERPAPI, Google CSE or with browser (with fallback strategy to browser mode)
-def web_search_tool(query: str, task: str, num_extracts: int, mode: str):
+def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary_mode: bool):
     links = []
     search_results = []
     results = []
@@ -120,9 +119,9 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str):
         access_counter = 0
         while (access_counter < 3):
             url = f"https://www.duckduckgo.com/html/?q={query}"
-            index = math.floor(random.random() * len(user_agents_list))
+            index = int(random.random() * len(user_agents_list))
             browser_header = {'User-Agent': user_agents_list[index]}
-            search_results = requests.get(url, headers=browser_header, timeout=5)
+            search_results = requests.get(url, headers=browser_header, timeout=10)
             if search_results.status_code == 200:
                 try:
                     soup = BeautifulSoup(search_results.text, 'html.parser')
@@ -164,19 +163,26 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str):
         for link in links:
             print("\033[90m\033[3m" + f"Scraping '{link}'...\033[0m")
             print_to_file(f"Scraping '{link}'...\n", 'a')
-            summary, scrape, raw = web_scrape_tool(link, task)
-            print("\033[90m\033[3m" + str(summary) + "\n\033[0m")
-            print_to_file(str(summary) + "\n", 'a')
-            results += str(summary) + ". "
-            scrape_texts += scrape
-            scrape_raw += raw
+            summary, scrape, raw = web_scrape_tool(link, task, summary_mode)
+
+            # Check for not empty results
+            if summary != None:
+                print("\033[90m\033[3m" + str(summary) + "\n\033[0m")
+                print_to_file(str(summary) + "\n", 'a')
+                results += str(summary) + ". "
+                scrape_texts += scrape
+                scrape_raw += raw
+            else:
+                links.remove(link)
+                print(f'Error: No results found, remove "{link}" from list.')
+
             i+=1
             if i >= num_extracts:
                 break
     else:
         print("\033[90m\033[3m" + "No search results found.\033[0m")
 
-    return results, scrape_texts, scrape_raw, links
+    return results, scrape_texts, str(scrape_raw), links
 
 
 ### Tool functions ##############################
@@ -256,23 +262,26 @@ def simplify_search_results(search_results):
     return simplified_results
 
 
-def web_scrape_tool(url: str, task:str):
+def web_scrape_tool(url: str, task: str, summary_mode: bool):
     content = fetch_url_content(url)
     if content is None:
         return None
 
     # Extract with bs4 for summarization and newspaper3k for raw page content
-    raw = "Web page scrape extract(Newspaper3k):\n" + extract_text_newspaper3k(url) + "\nWeb page scrape extract (BeautifulSoup):\n" + extract_text_extended(content)
-    print("\033[90m\033[3m" + "Raw page content extracted using Newspaper3k and BeautifulSoup...\033[0m")
+    raw = extract_text_extended(content)
+    print("\033[90m\033[3m" + f"Raw page content extracted using BeautifulSoup with stricter filtering with length: {len(raw)}\033[0m")
     text = extract_text(content)
-
-    print("\033[90m\033[3m" + f"Scrape completed with length: {len(text)}. Now extracting relevant info with scrape length: {SCRAPE_LENGTH} and summary length: {CONTEXT_LENGTH}\033[0m")
-    print_to_file(f"Scrape completed with length: {len(text)}. Now extracting relevant info with scrape length: {SCRAPE_LENGTH} and summary length: {CONTEXT_LENGTH}\n", 'a')
-    info = extract_relevant_info(OBJECTIVE, text[0:SCRAPE_LENGTH], task)
     links = extract_links(content)
 
-    #result = f"{info} URLs: {', '.join(links)}"
-    result = info
+    if summary_mode:
+        print("\033[90m\033[3m" + f"Scrape completed with length: {len(text)}. Now extracting relevant info with scrape length: {SCRAPE_LENGTH} and summary length: {CONTEXT_LENGTH}\033[0m")
+        print_to_file(f"Scrape completed with length: {len(text)}. Now extracting relevant info with scrape length: {SCRAPE_LENGTH} and summary length: {CONTEXT_LENGTH}\n", 'a')
+        info = extract_relevant_info(OBJECTIVE, text[0:SCRAPE_LENGTH], task)
+        #result = f"{info} URLs: {', '.join(links)}"
+        result = info
+
+    else:
+        result = ""
     
     return result, text, raw
 
@@ -355,7 +364,7 @@ def extract_relevant_info(objective, large_string, task):
                 
                 if response['choices'][0]['text'].strip()+". " not in notes:
                     notes += response['choices'][0]['text'].strip()+". "
-                print(f"Search summary result for part {i}:\n" + response['choices'][0]['text'].strip()+". ")
+                print(f"Search summary result for part {i-chunk_size} in {int((len(large_string))/(chunk_size-overlap))}:\n" + response['choices'][0]['text'].strip()+". ")
     
     # Otherwise setup GPT-3 model
     else:
@@ -377,7 +386,7 @@ def extract_relevant_info(objective, large_string, task):
                 temperature=0.7,
             )
             notes += response.choices[0].message['content'].strip()+". "
-            #print(f"Search summary result for part {i}:\n" + response['choices'][0]['text'].strip()+". ")
+            #print(f"Search summary result for part {i-chunk_size} in {int((len(large_string))/(chunk_size-overlap))}::\n" + response['choices'][0]['text'].strip()+". ")
 
     return notes
 
