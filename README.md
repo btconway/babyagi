@@ -28,7 +28,7 @@ The scrape result summary LLM has its own model & settings, separate from task p
 
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-SmartSearch.jpeg)
 
-## Document embedding extension (using langchain)
+## Document embedding extension
 New document embedding with Q&A retrieval functionality from: https://github.com/imartinez/privateGPT.git.
 Many thanks to https://github.com/imartinez for the great work!
   - The main functionality from script privateGPT.py has been integrated in BabyAGI
@@ -71,11 +71,11 @@ By limiting the context size for document embedding, smart search results, etc. 
 
 Running continuously with a 7B-Llama,... creating & processing the task list, analysing web scrape results, doing Q&A retrieval with embedded document store, all in parallel and w/o getting stuck in loops or aborting prematurely. 😋
 
-## Report creation extension (experimantal)
+## Report creation extension (experimental)
 
 This feature, when finished, shall create a report, summary or code as output to a file, involving parsing, update and development of the file.
 
-Up to now text from task result or smart search is written to the file, based on a marker in the text and supplementary instructions for the objective. See the parameters in .env file for details.
+Up to now text from task result and smart search results analyzed and written to a file, based on a marker in the text and supplementary instructions for the objective. See the parameters in .env file for details.
 
 ************************************************************
 
