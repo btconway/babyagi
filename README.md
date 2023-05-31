@@ -7,7 +7,7 @@ This is a side branch of BabyAGI with enhancements:
   - Update of document embedding vector store with complete web page scrape content as optional feature
   - Initial internet topresult search, raw web scrape content extraction and embedding in document vector store
   - Full Llama support for all functionalities, including smart internet search
-  - New: Wikipedia search as smart search supplement or as context for next task
+  - Wikipedia search as smart search supplement or as context for next task
   - Experimental: Report extension for creation of a report (involving supplementary instructions for objective)
   - Simple print to file functionality for terminal output
   - Adding of task information (beside ojective) in query for context agent
