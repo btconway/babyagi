@@ -50,7 +50,7 @@ The content extraction for the raw scrape data is more strict than the one for r
 
 The feature can be disabled by a parameter in .env, switching the vector store to "read-only".
 
-Since the raw web scrape can be many thousands characters long, adding it as enriched result did not work (token limit error). So I decided to include this information in the document embedding store. In addition the results storage is enriched by smart search summary and document embedding results.
+Since the raw web scrape can be ten-thousands of characters long, adding it as enriched result to resulzs storage did not work (token limit error). So I decided to include this information in the document embedding store. In addition the results storage is enriched by smart search summary and document embedding results.
 
 With enabled document embedding extension the updated vector store then provides context for the next task by Q&A retrieval.
 
