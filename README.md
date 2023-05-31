@@ -75,7 +75,7 @@ Running continuously with a 7B-Llama,... creating & processing the task list, an
 
 This feature, when finished, shall create a report, summary or code as output to a file, involving parsing, update and development of the file.
 
-Up to now text from task result or smart search is written to the file, based on a marker in the text and supplementary instrcutions for the objective. See the parameters in .env file for details.
+Up to now text from task result or smart search is written to the file, based on a marker in the text and supplementary instructions for the objective. See the parameters in .env file for details.
 
 ************************************************************
 
@@ -90,7 +90,7 @@ See below some things I did notice during my many hours of testing & tinkering:
   - The Q&A retrieval with document embedding vector store works best with EMBEDDINGS_CTX_MAX set to 1024. Value of 2048 makes the Q&A retrieval very slow.
   - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000 (default is 3000 with OpenAI).
   - The smart search result summary can get lengthy, depending on the scrape size (SCRAPE_LENGTH) and number of top result web pages to be scraped. Therefore I did limit the top result pages to 1 (default is 3 with OpenAI) in code and SCRAPE_LENGTH to 3000 (default is 5000 with OpenAI).
-  - The models and configuration for each LLM (task process, smart search and document embedding) can be setup independently, making it possible to use different Llama's for each funtion.
+  - The models and configuration for each LLM (task process, smart search and document embedding) can be setup independently, making it possible to use different Llama's for each funtion
 
 ## Experience and motivation
 The overall speed is a bit slow with a 7B-Llama, but it works. The task processing speed is not so bad at all, what takes time is the summarization of web scrape results, due to the amount of chunks. The smart internet search and document embedding are great improvements in general and help the 7B-Llama not to get stuck. Most important parameter is the context limit (LLAMA_CONTEXT) and token limit (MAX_TOKENS) in .env file.
