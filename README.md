@@ -4,12 +4,13 @@ This is a side branch of BabyAGI with enhancements:
   - Smart internet search extension, based on BabyCatAGI implementation
   - Document embedding extension: Q&A retrieval in langchain using code from the popular repo 'privateGPT'
     - New: Stand-alone scripts as supplementary tools (ingest.py, scrape.py and qa-retrieval.py)
-  - New: Persistent entity memory, based on document embedding vector store
+  - New: Update of document embedding vector store with complete web page scrape content as optional feature
   - Full Llama support for all functionalities, including smart internet search
   - New: Wikipedia search as smart search supplement or as context for next task
   - Simple print to file functionality for terminal output
   - Experimental: Report extension for creation of a report (involving supplementary instructions for objective)
   - Adding of task information (beside ojective) in query for context agent
+  - Enriching of results storage data with document embedding and scrape summary results
   - Various updates for agent prompts, including conditions with instructions for the new extensions
   - Many minor changes/optimizations/beautifications for code
   - See the new parameters in .env.example and the description in comments
@@ -40,9 +41,11 @@ The document embedding LLM has its own model & settings, separate from task proc
 
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-DocEmbedding.jpeg)
 
-## Persistent entity memory with vector store
-The intention behind this functionality is to give BabyAGI a long-term memory, compensating for the context limit. Therefore extended result data gets stored, which can be quite large when smart internet search results are available. Beside the LLM powered web scrape result summary, the raw web page scrape content is stored and embedded in vector store. 
+## Automatic appending of data to document embedding vector store
+The intention behind this functionality is to give BabyAGI a long-term memory, compensating for the context limit. Therefore extended result data gets stored, which can be quite large. Beside the LLM powered web scrape result summary, the raw web page scrape content is stored and embedded in vector store.
 The feature can be disabled by a parameter in .env, switching the vector store to "read-only".
+
+Since the raw web scrape can be many thousands characters long, adding it as enriched result did not work (token limit error). So I decided to include this information in the document embedding store. 
 
 With enabled document embedding extension the updated vector store then provides context for the next task by Q&A retrieval.
 
