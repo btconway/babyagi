@@ -81,8 +81,8 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
                     mode = "browser"
                     print("Switching to browser mode...")
     
-        print("\033[90m\033[3m" + "Completed search. Now scraping results...\n\033[0m")
-        print_to_file("Completed search. Now scraping results...\n", 'a')
+        print("\033[90m\033[3m" + "Completed search. Now getting links...\n\033[0m")
+        print_to_file("Completed search. Now getting links...\n", 'a')
         links = []
         for result in search_results:
             links.append(result['link'])
@@ -107,8 +107,8 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
             print("Switching to browser mode...")
 
         search_results = simplify_search_results(search_results)
-        print("\033[90m\033[3m" + "Completed search. Now scraping results...\033[0m")
-        print_to_file("Completed search. Now scraping results...\n", 'a')
+        print("\033[90m\033[3m" + "Completed search. Now getting links...\033[0m")
+        print_to_file("Completed search. Now getting links...\n", 'a')
         links = []
         for result in search_results:
             links.append(result.get('link'))
@@ -137,8 +137,8 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
                             access_counter = 3
                             break
                     
-                    print("\033[90m\033[3m" + f"Completed search with {str(browser_header)}. Now scraping results...\n\033[0m")
-                    print_to_file(f"Completed search with {str(browser_header)}. Now scraping results...\n", 'a')
+                    print("\033[90m\033[3m" + f"Completed search with {str(browser_header)}. Now getting links..\n\033[0m")
+                    print_to_file(f"Completed search with {str(browser_header)}. Now getting links...\n", 'a')
                 
                 except Exception as e:
                     print("\033[90m\033[3m" + f"Error while parsing HTML data: {e}\033[0m")
@@ -157,8 +157,8 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
     # Scrape and sumarize the search results
     i = int(0)
     results = ""
-    scrape_texts = ""
-    scrape_raw = ""
+    scrape_texts = []
+    scrape_raw = []
     if search_results:
         for link in links:
             print("\033[90m\033[3m" + f"Scraping '{link}'...\033[0m")
@@ -166,15 +166,18 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
             summary, scrape, raw = web_scrape_tool(link, task, summary_mode)
 
             # Check for not empty results
-            if summary != None:
+            if summary != None and summary != "":
                 print("\033[90m\033[3m" + str(summary) + "\n\033[0m")
                 print_to_file(str(summary) + "\n", 'a')
                 results += str(summary) + ". "
-                scrape_texts += scrape
-                scrape_raw += raw
-            else:
+                scrape_texts.append(scrape)
+                scrape_raw.append(raw)
+            elif summary == None:
                 links.remove(link)
                 print(f'Error: No results found, remove "{link}" from list.')
+            else:
+                scrape_texts.append(scrape)
+                scrape_raw.append(raw)
 
             i+=1
             if i >= num_extracts:
@@ -182,7 +185,7 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
     else:
         print("\033[90m\033[3m" + "No search results found.\033[0m")
 
-    return results, scrape_texts, str(scrape_raw), links
+    return results, scrape_texts, scrape_raw, links
 
 
 ### Tool functions ##############################
@@ -364,7 +367,7 @@ def extract_relevant_info(objective, large_string, task):
                 
                 if response['choices'][0]['text'].strip()+". " not in notes:
                     notes += response['choices'][0]['text'].strip()+". "
-                print(f"Search summary result for part {i-chunk_size} in {int((len(large_string))/(chunk_size-overlap))}:\n" + response['choices'][0]['text'].strip()+". ")
+                print(f"Search summary result with current length {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
     
     # Otherwise setup GPT-3 model
     else:
@@ -386,7 +389,7 @@ def extract_relevant_info(objective, large_string, task):
                 temperature=0.7,
             )
             notes += response.choices[0].message['content'].strip()+". "
-            #print(f"Search summary result for part {i-chunk_size} in {int((len(large_string))/(chunk_size-overlap))}::\n" + response['choices'][0]['text'].strip()+". ")
+            #print(f"Search summary result with current length {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
 
     return notes
 
