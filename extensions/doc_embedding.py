@@ -50,6 +50,8 @@ chunk_overlap = 50
 source_directory = os.environ.get('DOC_SOURCE_PATH', 'source_documents')
 scrape_directory = os.environ.get('DOC_SCRAPE_PATH', 'scrape_documents')
 
+loaded_files = []
+
 # Custom document loaders
 class MyElmLoader(UnstructuredEmailLoader):
     """Wrapper to fallback to text/plain when default does not work"""
@@ -115,27 +117,32 @@ def load_documents(source_dir: str, ignored_files: List[str] = []) -> List[Docum
     filtered_files = [file_path for file_path in all_files if file_path not in ignored_files]
     print(f"Found {len(filtered_files)} files to load...")
 
-    with Pool(processes=os.cpu_count()) as pool:
+    for file in filtered_files:
         results = []
-        with tqdm(total=len(filtered_files), desc='Loading new documents', ncols=80) as pbar:
-            for i, doc in enumerate(pool.imap_unordered(load_single_document, filtered_files)):
-                results.append(doc)
-                pbar.update()
+        for i, doc in enumerate(load_single_document(file)):
+            results.append(doc)
+
+    #with Pool(processes=os.cpu_count()) as pool:
+    #    results = []
+    #    with tqdm(total=len(filtered_files), desc='Loading new documents', ncols=80) as pbar:
+    #        for i, doc in enumerate(pool.imap_unordered(load_single_document, filtered_files)):
+    #            results.append(doc)
+    #            pbar.update()
 
     return results
 
 
-def process_documents(ignored_files: List[str] = []) -> List[Document]:
+def process_documents(source_path: str, ignored_files: List[str] = []) -> List[Document]:
     """
     Load documents and split in chunks
     """
-    print(f"Loading documents from {source_directory}")
-    documents = load_documents(source_directory, ignored_files)
+    print(f"Loading documents from {source_path}")
+    documents = load_documents(source_path, ignored_files)
     if not documents:
         print("No new documents to load")
         exit(0)
-    print(f"Loaded {len(documents)} new documents from {source_directory}")
-    print(documents)
+    print(f"Loaded {len(documents)} new documents from {source_path}")
+    #print(f'Documents:\n{documents}')
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     texts = text_splitter.split_documents(documents)
     print(f"Split into {len(texts)} chunks of text (max. {chunk_size} tokens each)")
@@ -170,7 +177,7 @@ def parse_arguments():
 
 
 # API: Load documents from directory & embedd in vector store
-def document_loader(source_directory: str, persist_directory: str, embeddings: HuggingFaceEmbeddings):
+def document_loader(source_path: str, persist_directory: str, embeddings: HuggingFaceEmbeddings):
     # Define the Chroma settings
     CHROMA_SETTINGS = Settings(
             chroma_db_impl='duckdb+parquet',
@@ -185,13 +192,13 @@ def document_loader(source_directory: str, persist_directory: str, embeddings: H
         # Update and store locally vectorstore
         print(f"Appending to existing vectorstore at: {persist_directory}")
         db = Chroma(persist_directory=persist_directory, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
-        texts = process_documents()
+        texts = process_documents(source_path)
         print(f"Creating embeddings. May take some minutes...")
         db.add_documents(texts)
     else:
         # Create and store locally vectorstore
         print("Creating new vectorstore")
-        texts = process_documents()
+        texts = process_documents(source_path)
         print(f"Creating embeddings. May take some minutes...")
         db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
     db.persist()
@@ -227,6 +234,7 @@ def process_text(qa_result: str, links: str) -> List[Document]:
     return texts
 
 
+# Check if content is already stored in Q&A document
 def check_content(file_path: str, input: str, text: str):
     with open(file_path, 'r') as f:
         f.read()
@@ -240,27 +248,28 @@ def check_content(file_path: str, input: str, text: str):
 
 # API: Write text to file
 def text_writer(file_path: str, input: str, text: str):
+    # Check if file exists
     try:
         with open(file_path, 'r') as f:
             mode = 'a'
     except:
         mode = 'w'
 
-    # Create new files for initial web search & scrape
-    if text == "initial web scrape":
+    # Create/Overwrite files for initial and continuous web scrape to file
+    if text == "initial web scrape" or "web scrape to file":
         mode = 'w'
 
+    # Setup write flag
     if mode == 'a':
         write_flag = check_content(file_path, input, text)
     else:
         write_flag = True
 
+    # Write fo file
     if input and write_flag:
         if input.startswith("As an AI assistant"):
             input = input.split(". ")[1]
         with open(file_path, mode) as f:
-            if mode == 'w':
-                f.write("# This file contains the list of all completed task results (for Q&A retrieval), if available with web scrape summary, LLM validated summary, source URLs and complete web pages (for later using with 'ingest.py')\n# The write feature can be enabled/disbaled with ENABLE_DOC_UPDATE.\n# The update of document embedding with new result data for presistent entity vector memory (see ENABLE_STORE_UPDATE) works indepently from this file.\n# New result data (which is not yet stored) is appended to this file. If the vectorstore (see DOC_STORE_NAME) is deleted, BabyAGI's persistent entity memory is 'erased', but still exists in this file (and can be loaded again with 'ingest.py')...\n\n")
             f.write(input)
         return input
     elif not write_flag:
@@ -270,7 +279,7 @@ def text_writer(file_path: str, input: str, text: str):
         return ""
 
 
-# API: Load text from e.g. internet result & embedd in vector store
+# API: Load text from e.g. internet result & embedding document in vector store
 def text_loader(persist_directory: str, qa_result: str, links: str):
     # Define the Chroma settings
     CHROMA_SETTINGS = Settings(
