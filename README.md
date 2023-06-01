@@ -1,4 +1,4 @@
-# BabyAGI-🦙... runs 100% locally as well
+# BabyAGI-🦙... runs 100% local as well
 
 This is a side branch of BabyAGI with some enhancements... 🚀
 
