@@ -16,7 +16,7 @@ The scrape result summary LLM has its own model & settings, separate from task p
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-SmartSearch.jpeg)
 
 ## 👀 Initial internet search & web page scraping
-Optional feature to perform a toplist search and subsequent web page scraping at startup. The scrape results, with strict filtering for human-readable content, then get embedded in document vector store (see next chapter), before the task procedure is started.
+Optional feature to perform a toplist search (with auto-generated search requests, derived from the objective) and subsequent web page scraping at startup. The scrape results, with strict filtering for human-readable content, then get embedded in document vector store (see next chapter), before the task procedure is started.
 
 This shall provide BabyAGI with a preconfigured "memory" with related content and shall help to minimize the need for smart search, since it involves token intensive LLM based scrape result summarization. The manual operation using supplementary scripts scraper.py and ingest.py is automated with this feature (see next chapter).
 
