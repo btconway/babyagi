@@ -21,7 +21,7 @@ Optional feature to perform a toplist search (with auto-generated search request
 This shall provide BabyAGI with a preconfigured "memory" with related content and shall help to minimize the need for smart search, since it involves token intensive and time consuming LLM powered scrape result summarization. The manual operation using supplementary scripts scraper.py and ingest.py is automated with this feature (see next chapter).
 
 ## 🧠 Document embedding extension
-New document embedding with Q&A retrieval functionality from: https://github.com/imartinez/privateGPT.git.
+Integration of document embedding and Q&A retrieval functionality from: https://github.com/imartinez/privateGPT.git.
 Many thanks to https://github.com/imartinez for the great work!
   - The main functionality from script privateGPT.py has been integrated in BabyAGI
   - The embedded documents are accessed with Q&A retrieval and the answer is added as context for the next task
