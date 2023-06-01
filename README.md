@@ -80,6 +80,7 @@ See below some things I did notice during my many hours of testing & tinkering:
     - The parameter LLAMA_CTX_MAX should be set to 2048, with LLAMA_CONTEXT set to 4000 (value in chars, not tokens).
     - According to what I could find out Llamas should support a context size of 2048 in general, but I am not sure if this is correct. Works at least with wizardLM-7B and vicuna-7B.
     - Reducing LLAMA_CTX_MAX to 1024 makes the task procedure faster, but responses are getting badly truncated
+    - Also with 2048 and smart context truncation, the task creation agent and task prioritization agent responses is incomplete sometimes. In these cases the start of the response is missing, but the overall task planning & prioritization process seems to stay on track.
   - The Q&A retrieval with document embedding vector store works best with EMBEDDINGS_CTX_MAX set to 1024. Value of 2048 makes the Q&A retrieval very slow.
   - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000 (default is 3000 with OpenAI).
   - The smart search result summary can get lengthy, depending on the scrape size (SCRAPE_LENGTH) and number of top result web pages to be scraped. Therefore I did limit the top result pages to 1 (default is 3 with OpenAI) in code and SCRAPE_LENGTH to 3000 (default is 5000 with OpenAI).
