@@ -28,9 +28,9 @@ Many thanks to https://github.com/imartinez for the great work!
   - The determination of the optimal search query for the Q&A retrieval is LLM powered, based on the task, context and the objective
 
 Adding of stand-alone scripts as supplementary tools for BabyAGI:
-    - scraper.py: Google toplist search and scraping of web pages related to the objective (using a slightly modified version of smart internet search). The results can be added to the document vector store before the task procedure is started with script ingest.py (see the following item)
-    - ingest.py: Document loader, documents in subfolder "source_documents" are loaded and embedded in a document embedding vector store (from privateGPT repo with minor changes)
-    - qa-retrieval.py: Q&A retrieval with document embedding vector store, useful for evaluation purposes (slightly modified version of privateGPT.py)
+  - scraper.py: Google toplist search and scraping of web pages related to the objective (using a slightly modified version of smart internet search). The results can be added to the document vector store before the task procedure is started with script ingest.py (see the following item)
+  - ingest.py: Document loader, documents in subfolder "source_documents" are loaded and embedded in a document embedding vector store (from privateGPT repo with minor changes)
+  - qa-retrieval.py: Q&A retrieval with document embedding vector store, useful for evaluation purposes (slightly modified version of privateGPT.py)
 
 All stand-alone scripts use BabyAGI parameters from .env file, see the document embedding extension and the description in comments.
 The document embedding LLM has its own model & settings, separate from task process LLM. See .env file for details.
