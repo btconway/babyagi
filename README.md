@@ -60,9 +60,9 @@ Running continuously with a 7B-Llama,... creating & processing the task list, an
 
 ## 🧫 Report creation extension (experimental)
 
-This feature, when finished, shall create a report, summary or code as output to a file, involving parsing, update and development of the file.
+With this extension enabled, the task results and smart search results are getting analyzed for a marker. The marker and what shall be done is defined in a supplementary instruction for the objective, called "ACTION". The functionality is pretty basic up to now, but important results are properly marked, identified and added to the report file. Works also with code!
 
-Up to now text from task result and smart search results analyzed and written to a file, based on a marker in the text and supplementary instructions for the objective. The functionality is pretty basic up to now, but important results are properly marked and added to the report file. Works also with code.
+This feature, when finished, shall create a report, summary or code as output to a file, involving parsing, loading and update of the report file.
 
 See the parameters in .env file for details.
 
