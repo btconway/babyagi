@@ -8,7 +8,7 @@ This is a side branch of BabyAGI with some enhancements... 🚀
 Toplist Google search, subsequent web page scraping and finally LLM powered scrape result summarization (reading of lengthy scrape result in chunks).
   - Works with Google CSE, SERPAPI and browser search
   - Fallback mechanism in case of API rate limit or missing API key (CSE -> SERPAPI -> browser search). Works also w/o any API key with browser search.
-  - Adding of a second web page scrape function for retrieval of a more compact extract (used for persistent entity memory)
+  - Adding of a second web page scrape function for retrieval of a more compact extract (used for document mebedding, see below)
   - The LLM does reason on its own when internet search is required and in this case verbalizes the task as a concise search request
 
 The scrape result summary LLM has its own model & settings, separate from task process LLM. See .env file for details.
