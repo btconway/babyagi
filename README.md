@@ -64,8 +64,6 @@ With this extension enabled, the task results and smart search results are getti
 
 This feature, when finished, shall create a report, summary or code as output to a file, involving parsing, loading and update of the report file.
 
-See the parameters in .env file for details.
-
 ************************************************************
 
 ## 📖 Tipps, hints & observations for Llama operation
