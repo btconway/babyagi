@@ -85,7 +85,7 @@ See below some things I did notice during my many hours of testing & tinkering:
   - The same applies for the smart search summary. Set the parameter SUMMARY_CTX_MAX to 1024 and SUMMARY_CONTEXT to 1000 (default is 3000 with OpenAI).
   - The smart search result summary can get lengthy, depending on the scrape size (SCRAPE_LENGTH) and number of top result web pages to be scraped. Therefore I did limit the top result pages to 1 (default is 3 with OpenAI) in code and SCRAPE_LENGTH to 3000 (default is 5000 with OpenAI).
   - The models and configuration for each LLM (task process, smart search and document embedding) can be setup independently, making it possible to use different Llama's for each funtion
-  - The fine-tuning parameters for context limitation are all available in .env file, for easy experimation. The pre-defined setup works well with 7B-Llama.
+  - The fine-tuning parameters for smart context limitation are all setup in .env file, for easy experimation. The pre-defined setup works well with 7B-Llama.
 
 ## 🗿 Experience and motivation
 The overall speed is a bit slow with a 7B-Llama, but it works. The task processing speed is not so bad at all, what takes time is the summarization of web scrape results, due to the amount of chunks. The smart internet search and document embedding are great improvements in general and help the 7B-Llama not to get stuck. Most important parameter is the context limit (LLAMA_CONTEXT) and token limit (MAX_TOKENS) in .env file.
@@ -101,6 +101,7 @@ I am sure I did miss to add some of the new required packages in requirements.tx
 ## 🐱‍💻 Planned upgrades
   - Enhancement of report creation extension for full report parsing/changing
   - Support of GPT4All models for task procedure and smart search LLM's
+  - Algorithm for estimation of available context length for next prompt, considering all inputs
   - ...
 
 ************************************************************
