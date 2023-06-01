@@ -95,7 +95,7 @@ I am sure I did miss to add some of the new required packages in requirements.tx
 
 ## 🐱‍💻 Planned upgrades
   - Enhancement of report creation extension for full report parsing/changing
-  - Support for GPT4All models for task procedure and smart search LLM's
+  - Support of GPT4All models for task procedure and smart search LLM's
   - ...
 
 ************************************************************
