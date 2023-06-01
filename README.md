@@ -101,7 +101,7 @@ I am sure I did miss to add some of the new required packages in requirements.tx
 ## 🐱‍💻 Planned upgrades
   - Enhancement of report creation extension for full report parsing/changing
   - Support of GPT4All models for task procedure and smart search LLM's
-  - Algorithm for estimation of available context length for next prompt, considering all inputs
+  - Algorithm for automatic evaluation of optimal smart context limits for all types of context
   - ...
 
 ************************************************************
