@@ -8,7 +8,7 @@ This is a side branch of BabyAGI with some enhancements... 🚀
 Toplist Google search, subsequent web page scraping and finally LLM powered scrape result summarization (reading of lengthy scrape result in chunks).
   - Works with Google CSE, SERPAPI and browser search
   - Fallback mechanism in case of API rate limit or missing API key (CSE -> SERPAPI -> browser search). Works also w/o any API key with browser search.
-  - Adding of a second web page scrape function for retrieval of a more compact and clean extract (used for document embedding, see below)
+  - Adding of a second web page scrape function for retrieval of a more compact and clean extract (used for document embedding)
   - The LLM does reason on its own when internet search is required and in this case verbalizes the task as a concise search request
   - The availibility of browser search might be restricted, due to blocking of script's user agent by the server
 
@@ -31,7 +31,7 @@ Many thanks to https://github.com/imartinez for the great work!
 Adding of stand-alone scripts as supplementary tools for BabyAGI:
   - scraper.py: Google toplist search and scraping of web pages related to the objective (using a slightly modified version of smart internet search). The results can be added to the document vector store before the task procedure is started with script ingest.py
   - ingest.py: Document loader, documents in subfolder "source_documents" are loaded and embedded in a document embedding vector store (from privateGPT repo with minor changes)
-  - qa-retrieval.py: Q&A retrieval with document embedding vector store, useful for evaluation purposes (slightly modified version of privateGPT.py)
+  - qa-retrieval.py: Q&A retrieval with document embedding vector store, useful for database evaluation (slightly modified version of privateGPT.py)
 
 All stand-alone scripts use BabyAGI parameters from .env file, see the document embedding extension and the description in comments.
 The document embedding LLM has its own model & settings, separate from task process LLM. See .env file for details.
