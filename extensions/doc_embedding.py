@@ -8,8 +8,6 @@ import os
 import glob
 from typing import List
 from dotenv import load_dotenv
-from multiprocessing import Pool
-from tqdm import tqdm
 
 # Document loading
 from langchain.document_loaders import (
@@ -177,7 +175,7 @@ def parse_arguments():
 
 
 # API: Load documents from directory & embedd in vector store
-def document_loader(source_path: str, persist_directory: str, embeddings: HuggingFaceEmbeddings):
+def document_loader(source_path: str, persist_directory: str):
     # Define the Chroma settings
     CHROMA_SETTINGS = Settings(
             chroma_db_impl='duckdb+parquet',
@@ -256,7 +254,7 @@ def text_writer(file_path: str, input: str, text: str):
         mode = 'w'
 
     # Create/Overwrite files for initial and continuous web scrape to file
-    if text == "initial web scrape" or "web scrape to file":
+    if text == "initial web scrape" or text == "web scrape to file":
         mode = 'w'
 
     # Setup write flag
