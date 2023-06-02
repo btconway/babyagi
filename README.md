@@ -40,9 +40,8 @@ All stand-alone scripts use BabyAGI parameters from .env file. The document embe
 Important: The document embedding vector store has to be created and filled with at least one entry, before the document embedding feature is enabled!
 
 ## 📚 Long-term memory: Automatic appending of web scrape content to document embedding vector store
-The intention behind this functionality is to enhance BabyAGI's a long-term memory and compensate for the context limit. Therefore extended result data gets stored, which can be quite large.
-Beside the LLM powered web scrape result summary, the raw web page scrape content is stored and embedded in vector store.
-The content extraction for the raw scrape data is more strict than the one for result summary creation because the extract must be "clean", hence no incomprehensible data as strings of keywords or characters is included.
+The intention behind this functionality is to enhance BabyAGI's a long-term memory and compensate for the context limit. Therefore "clean" web scrapes are stored and embedded in vector store.
+The content extraction for the scrape data is more strict than the one for result summary creation because the extract must not include incomprehensible parts, as strings of keywords or characters.
 
 The feature can be disabled by a parameter in .env, switching the vector store to "read-only".
 
