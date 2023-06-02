@@ -350,6 +350,7 @@ def extract_relevant_info(objective, large_string, task):
                 n_batch=512,
                 use_mlock=False,
                 seed=-1,
+                verbose=False,
             )
 
             for i in range(0, len(large_string), chunk_size - overlap):
