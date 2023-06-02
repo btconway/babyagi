@@ -43,7 +43,7 @@ TASK_DESCRIPTION_FACTOR = float(os.getenv("TASK_DESCRIPTION_FACTOR", 0.2))
 TASK_NAME_FACTOR = float(os.getenv("TASK_NAME_FACTOR", 0.5))
 TASK_CONTEXT_FACTOR = float(os.getenv("TASK_CONTEXT_FACTOR", 0.25))
 SUMMARY_RESULT_FACTOR = float(os.getenv("SUMMARY_RESULT_FACTOR", 1.0))
-DOC_EMBEDDING_FACTOR = float(os.getenv("DOC_EMBEDDING_FACTOR", 0.4))
+DOC_CONTEXT_FACTOR = float(os.getenv("DOC_CONTEXT_FACTOR", 0.4))
 
 # Internet search configuration
 ENABLE_SEARCH_EXTENSION = os.getenv("ENABLE_SEARCH_EXTENSION", "false").lower() == "true"
@@ -162,10 +162,13 @@ if ENABLE_REPORT_EXTENSION:
                     write_report(REPORT_FILE, "\n", 'a')
                     print(f'{block_counter} code blocks written to file: {REPORT_FILE}')
 
-                elif "#><#" in result:
-                    block_counter = result.count("#><#")
-                    for i in range(block_counter):
-                        write_report(REPORT_FILE, "\n#><#" + result.split("#><#")[i+1], 'a')
+                elif "###" in result:
+                    lines = result.split("\n")
+                    block_counter = int(0)
+                    for l in lines:
+                        if l.startswith("###") and len(l) > 5:
+                            write_report(REPORT_FILE, "\n" + l, 'a')
+                            block_counter += 1
 
                     write_report(REPORT_FILE, "\n", 'a')
                     print(f'{block_counter} report blocks written to file: {REPORT_FILE}')
@@ -185,13 +188,23 @@ if ENABLE_REPORT_EXTENSION:
             if not res:
                 with open(file, 'w') as f:
                     print("Objective for report file has changed, overwrite file...")
-                    f.write(f'# In this file BabyAGI stores information, as configured in .env file under ENABLE_REPORT_EXTENSION.\n# The output is derived step-by-step and new information is appended to the file...\n\nOBJECTIVE: {OBJECTIVE}\n---------------------------\n')
+                    f.write(f'# In this file BabyAGI stores information, as configured in .env file under ENABLE_REPORT_EXTENSION.\n')
+                    f.write(f'# The output is derived step-by-step and new information is appended to the file...\n\n')
+                    f.write(f'OBJECTIVE: {OBJECTIVE}')
+                    if ENABLE_REPORT_EXTENSION:
+                        f.write(f'Action: {ACTION}')
+                    f.write('\n---------------------------\n')
             
         except:
             with open(file, 'w') as f:
                 print("Report file does not exists, create file...")
-                f.write(f'# In this file BabyAGI stores information, as configured in .env file under ENABLE_REPORT_EXTENSION.\n# The output is derived step-by-step and new information is appended to the file...\n\nOBJECTIVE: {OBJECTIVE}\n---------------------------\n')
-    
+                f.write(f'# In this file BabyAGI stores information, as configured in .env file under ENABLE_REPORT_EXTENSION.\n')
+                f.write(f'# The output is derived step-by-step and new information is appended to the file...\n\n')
+                f.write(f'OBJECTIVE: {OBJECTIVE}')
+                if ENABLE_REPORT_EXTENSION:
+                    f.write(f'Action: {ACTION}')
+                f.write('\n---------------------------\n')
+                
     check_report_file(REPORT_FILE)
         
 
@@ -237,11 +250,6 @@ if ENABLE_EMBEDDINGS_EXTENSION or EMBEDDINGS_UPDATE or EMBEDDINGS_BACKUP or WIKI
             retriever = db.as_retriever()
             return db, retriever
         
-        # Setup embedding
-        def setup_embedding():
-            embeddings = HuggingFaceEmbeddings(model_name=embeddings_model_name)
-            return embeddings
-        
         # --------------------------------------------------------
         # Important: Vectorstore must exist before document embedding Q&A retrieval as context can be used
         # 1.) This can be done either by using ingest.py on a folder with documents...
@@ -285,22 +293,20 @@ if ENABLE_SEARCH_EXTENSION:
         def initial_search(search_request: str, task: str, num_results: int, num_requests: int):
             if search_request != "":
                 print("\033[93m\033[1m" + "\nInitial action:" + "\033[0m\033[0m" + f" Perform smart internet search and get web scrape results")
-                prompt = 'Analyze the following objective for different aspects, topics, tasks, etc. included, and identify all fields.\n'
+                prompt = f'First, analyze the following objective for different aspects included, and identify the {num_requests} most relevant aspects.\n'
                 prompt += f'Objective: {OBJECTIVE}\n'
-                prompt += f'Based on the analysis create {num_requests} internet search requests which cover all fields, and respond with a comma separated and numbered list.'
+                prompt += f'Then, based on the analysis verbalize the {num_requests} aspects as concise internet search requests and output as a numbered list.'
                 prompt += '\n\nYour response: '
                 response = openai_call(prompt, max_tokens=MAX_TOKENS)
 
-                list = response.split(", ")
-                print(f'List of extracted search requests:\n{list}\n')
-                i = int(0)
-                for l in list:
-                    if list.index(l) >= 1:
+                lines = response.split("\n")
+                print(f'\nExtracted search requests:\n{lines}\n')               
+                if lines:
+                    for l in lines:
                         try:
                             l = l.split(". ")[1]
                             if l != "":
                                 search_request = l
-                                i += 1
                                 print(f'Extracted search request: {search_request}')    
                                 if GOOGLE_API_KEY and GOOGLE_CSE_ID:
                                     print("Access smart search with Google CSE...")
@@ -319,19 +325,42 @@ if ENABLE_SEARCH_EXTENSION:
                                     if EMBEDDINGS_BACKUP:
                                         for element in scrape_raw:
                                             if len(element) > 1000:
+                                                # Add web scrape content to memory file
                                                 link = links[scrape_raw.index(element)]
-                                                input_text = f'\nInternet search request: {search_request}\n\nWeb page scrape content:\n{str(element)}\n\nSource: {link}\n'
+                                                input = f'\n--------------\nWeb scrape content:\n{str(element)}\n\nSource: {str(link)}\n--------------\n'
+                                                file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
+                                                text_writer(file_path=file_path, input=input, text="web scrape content")
+
+                                                # Add web scrape content to scrape file
+                                                input = f'\nInternet search request: {search_request}\n\nWeb page scrape content:\n{str(element)}\n\nSource: {str(link)}\n'
                                                 file_name = link.replace("https://", "").replace("http://", "").replace("/", "_")
                                                 file_path = SCRAPE_SOURCE_PATH + f'/scraper/{file_name[0:26]}.txt'
-                                                text_writer(file_path=file_path, input=input_text, text="initial web scrape")
-                                    
-                                    if EMBEDDINGS_UPDATE:
-                                        print("\033[93m\033[1m" + "\n*****RESULTS EMBEDDING IN DOCUMENT VECTORSTORE*****" + "\033[0m\033[0m")
-                                        print_to_file("\n*****RESULTS EMBEDDING IN DOCUMENT VECTORSTORE*****\n", 'a')
-                                        document_loader(f'{SCRAPE_SOURCE_PATH}/scraper', EMBEDDINGS_STORE_NAME, setup_embedding())
-                                        db, retriever = update_db()
+                                                text_writer(file_path=file_path, input=input, text="initial web scrape")
+
+                                                if EMBEDDINGS_UPDATE:
+                                                    input = f'\nInternet search request: {search_request}\n\nWeb page scrape content:\n{str(element)}\n'
+                                                    file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
+                                                    write_flag = False
+                                                    with open(file_path, 'r') as f:
+                                                        f.read()
+                                                        if str(element) not in f:
+                                                            write_flag = True
+                                                        else:
+                                                            print(f'Web scrape content already embedded in document vectorstore...')
+
+                                                    if write_flag:
+                                                        if text_loader(EMBEDDINGS_STORE_NAME, input, str(link)):
+                                                            db, retriever = update_db()
+                                                            print('Web scrape content successfully embedded in document vectorstore...')
                         except:
                             break
+                                
+                    if EMBEDDINGS_UPDATE:
+                        print("\033[93m\033[1m" + "\n*****RESULTS EMBEDDING IN DOCUMENT VECTORSTORE*****" + "\033[0m\033[0m")
+                        print_to_file("\n*****RESULTS EMBEDDING IN DOCUMENT VECTORSTORE*****\n", 'a')
+                        #document_loader(f'{SCRAPE_SOURCE_PATH}/scraper', EMBEDDINGS_STORE_NAME)
+                        print('Load updated document vectorstore...')                        
+                        db, retriever = update_db()
         
 # Wikipedia API extension (as stand-alone or amendment for internet search)
 if WIKI_SEARCH:
@@ -369,7 +398,7 @@ assert INITIAL_TASK, "\033[91m\033[1m" + "INITIAL_TASK environment variable is m
 # Function definitions
 # ------------------------
 # Check if context, task or result data has to be truncated due to context size limit (for Llama only, return task_list for OpenAI)
-def check_list_truncation(task_list: List[str], text: str, context_size: int):
+def check_truncation(task_list: List[str], text: str, context_size: int):
     length = len(str(task_list))
     new_list = []
     if LLM_MODEL.startswith("llama") and length > context_size:
@@ -391,7 +420,12 @@ def check_list_truncation(task_list: List[str], text: str, context_size: int):
                             new_list.append(t)
                         else:
                             task_counter -= len(t)
-                            print(f'{text} is too long ({len(str(task_list))}), truncating to size: {task_counter}')
+                            if task_counter == 0:
+                                new_list.append(t)
+                                new_list[0] = new_list[0][0:context_size]
+                                print(f'{text} has no lines and is too long ({len(str(task_list))}), truncating to size: {context_size}')
+                            else:
+                                print(f'{text} is too long ({len(str(task_list))}), truncating to size: {task_counter}')
                             break
             return new_list
         except:
@@ -412,17 +446,16 @@ def qa_retrieval(task: str, context_list: list, mode: str):
     elif mode == "embedding":
         print(f"\033[96m\033[1m\n*****DOCUMENT EMBEDDING CONTEXT*****\033[0m\033[0m")
     
-    if INITIAL_TASK in task and context_list == []:
+    if task == INITIAL_TASK:
         context = []
         context.append(OBJECTIVE)
+        print('Initial task detected, using objective as context...')
     else:
-        context_size = embeddings_model_n_ctx - len(task) - len(OBJECTIVE) - 300
+        context_size = embeddings_model_n_ctx - len(task) - 300
         if context_size <= 0:
             context_size = int(LLAMA_CONTEXT*0.05)
         print(f'Smart task context size limit: {int(context_size)}')
-        context = check_list_truncation(context_list, "Task context", int(context_size))
-        if len(context) != len(context_list):
-            print(f'Truncated task context: {context}')
+        context = check_truncation(context_list, "Task context", int(context_size))
         
     prompt = 'First, verbalize the task to a search query. Take into account that the query is processed by a AI as you, ensure that the query is concise and clear.'
     prompt += f'\nTask: {task}'
@@ -430,7 +463,7 @@ def qa_retrieval(task: str, context_list: list, mode: str):
     prompt += '\nContext: ' + ', '.join(context)
     prompt += '\nRespond with the query only.'
     prompt += '\n\nYour response: '
-    print('Verbalizing task to a query, considering supplementary context as necessary...\n')
+    print('Verbalizing task to a query, considering supplementary context as necessary...')
     query = openai_call(prompt, max_tokens=MAX_TOKENS)
 
     if query.startswith("Query: "):
@@ -456,8 +489,7 @@ def qa_retrieval(task: str, context_list: list, mode: str):
         doc_context = str(answer)
 
     context_size = LLAMA_CONTEXT - len(task) - len(OBJECTIVE) - len(str(context_list))
-    #print(f'\nCalculated context size available is {context_size}, with document embedding factor {DOC_EMBEDDING_FACTOR} -> Smart context size limit: {int(context_size*DOC_EMBEDDING_FACTOR)}')
-    doc_context = check_list_truncation(doc_context.split("\n"), "Document embedding context", int(context_size*DOC_EMBEDDING_FACTOR))
+    doc_context = check_truncation(doc_context.split("\n"), "Document embedding context", int(context_size*DOC_CONTEXT_FACTOR))
     return doc_context
     
 
@@ -498,7 +530,8 @@ if LLM_MODEL.startswith("llama"):
             n_threads=LLAMA_THREADS_NUM,
             n_batch=512,
             use_mlock=False,
-            seed = -1,  # New parameter
+            seed = -1,          # New parameter
+            verbose = False,    # New parameter
         )
         print('\nInitialize model for embedding')
         llm_embed = Llama(
@@ -508,7 +541,8 @@ if LLM_MODEL.startswith("llama"):
             n_batch=512,
             embedding=True,
             use_mlock=False,
-            seed = -1,  # New parameter
+            seed = -1,          # New parameter
+            verbose = False,    # New parameter
         )
         print(
             "\033[91m\033[1m"
@@ -806,21 +840,19 @@ def task_creation_agent(
     # Limit the context size
     print(f"\n****TASK CREATION AGENT PROMPT****")
     print_to_file(f"\n****TASK CREATION AGENT PROMPT****\n", 'a')
-    #context_size = LLAMA_CONTEXT - len(objective) - len(task_description) - len(str(result["data"])) - len(str(task_list)) - 300
-    #print(f'\nCalculated context size remaining for task creation: {context_size}') 
-    task_list = check_list_truncation(task_list, "Task list", int(LLAMA_CONTEXT*TASK_LIST_FACTOR))
+    task_list = check_truncation(task_list, "Task list", int(LLAMA_CONTEXT*TASK_LIST_FACTOR))
 
     # Use enriched result "internet" if available
     if result["internet"] == "":
-        result_data = check_list_truncation(str(result["data"]).split("\n"), "Task result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR))
+        result_data = check_truncation(str(result["data"]).split("\n"), "Task result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR))
     else:
-        result_data = check_list_truncation(str(result["internet"]).split("\n"), "Web scrape summary result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR))
+        result_data = check_truncation(str(result["internet"]).split("\n"), "Web scrape summary result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR))
     
     result_output = str("")
     for r in result_data:
         result_output += f'{r}\n'
 
-    task_description = check_list_truncation(task_description.split("\n"), "Task description", int(LLAMA_CONTEXT*TASK_DESCRIPTION_FACTOR))
+    task_description = check_truncation(task_description.split("\n"), "Task description", int(LLAMA_CONTEXT*TASK_DESCRIPTION_FACTOR))
     task_output = str("")
     for t in task_description:
         task_output += f'{t}\n'
@@ -828,13 +860,11 @@ def task_creation_agent(
     prompt = f"""
 You are to use the result from an execution agent to create new tasks with the following objective:\n{objective}\n
 The last completed task has the result:\n{result_output}
-This result was based on this task description: {task_output}\n"""
+This result was based on this task description: {task_output}"""
 
-    if LLM_MODEL.startswith("llama"):
-        prompt += 'Do not create generic tasks. All tasks must be specific to the objective.\n'
     if task_list:
-        prompt += 'These are incomplete tasks:\n' + '\n'.join(task_list)
-    prompt += "\n\nBased on the result, return a list of tasks to be completed in order to meet the objective. "
+        prompt += '\nThese are incomplete tasks:\n' + '\n'.join(task_list)
+    prompt += "\nBased on the result, return a list of tasks to be completed in order to meet the objective. "
     if task_list:
         prompt += "These new tasks must not overlap with incomplete tasks."
 
@@ -849,6 +879,7 @@ Unless your list is empty, do not include any headers before your numbered list 
 \nYour response: """
 
     response = openai_call(prompt, max_tokens=MAX_TOKENS)
+    #print(f'Prompt length: {len(prompt)}')
     print(prompt)
     print_to_file(prompt + "\n", 'a')
 
@@ -872,14 +903,11 @@ Unless your list is empty, do not include any headers before your numbered list 
 # Prioritize tasks from task list
 def prioritization_agent():
     task_names = tasks_storage.get_task_names()
-    bullet_string = '\n'
 
     print(f"\n****TASK PRIORITIZATION AGENT PROMPT****")
     print_to_file(f"\n****TASK PRIORITIZATION AGENT PROMPT****\n", 'a')
-    #context_size = LLAMA_CONTEXT - len(str(task_names)) - len(OBJECTIVE) - 300
-    #print(f'\nCalculated context size remaining for task prioritization: {context_size}')
-
-    task_names = check_list_truncation(task_names, "Prioritization task list", int(LLAMA_CONTEXT*TASK_NAME_FACTOR))
+    bullet_string = '\n'
+    task_names = check_truncation(task_names, "Prioritization task list", int(LLAMA_CONTEXT*TASK_NAME_FACTOR))
 
     prompt = f"""
 You are tasked with prioritizing the following tasks: {bullet_string + bullet_string.join(task_names)}\n
@@ -894,6 +922,7 @@ The entries must be consecutively numbered, starting with 1. The number of each 
 Do not include any headers before your ranked list or follow your list with any other output."""
 
     response = openai_call(prompt, max_tokens=MAX_TOKENS)
+    #print(f'Prompt length: {len(prompt)}')
     print(prompt)
     print_to_file(prompt + "\n", 'a')
 
@@ -933,7 +962,7 @@ def execution_agent(objective: str, task: str) -> str:
 
     """
     context = context_agent(objective, task, top_results_num=5)
-    context = check_list_truncation(context, "Context from previous tasks", int(LLAMA_CONTEXT*TASK_CONTEXT_FACTOR))
+    context = check_truncation(context, "Context from previous tasks", int(LLAMA_CONTEXT*TASK_CONTEXT_FACTOR))
 
     if ENABLE_EMBEDDINGS_EXTENSION:
         doc_context = qa_retrieval(task, context, "embedding")
@@ -957,6 +986,7 @@ def execution_agent(objective: str, task: str) -> str:
     if WIKI_SEARCH:
         prompt += '\nIf wikipedia search is suited best to complete the task, add "Wikipedia search request: " to the response and add in the same line the task redrafted to an optimal concise wikipedia search request.'
     prompt += f'\n\nYour response: '
+    #print(f'\nPrompt length (Task result): {len(prompt)}')
     return openai_call(prompt, max_tokens=MAX_TOKENS), doc_context
 
 
@@ -994,7 +1024,7 @@ def internet_agent(result: str, task: str):
     wiki_flag = False
 
     # Extraction of search request from task result text
-    if "search request: " or "search query: " in result:
+    if "search request: " or "search query: " in result and INITIAL_TASK not in task:
         if "search query: " in result:
             line = result.split("search query: ")[1]
             if line:
@@ -1008,6 +1038,9 @@ def internet_agent(result: str, task: str):
                 search_request = line
             if ("Wiki" or "wiki") in result:
                 wiki_flag = True
+
+        if '"' in search_request:
+            search_request = search_request.replace('"', '')
 
         # Substitue for search request
         if search_request != "":
@@ -1072,10 +1105,10 @@ def internet_agent(result: str, task: str):
     if summary_result != "":
         print("\033[93m\033[1m" + "\n*****TASK RESULT WITH SMART SEARCH*****" + "\033[0m\033[0m\n" + summary_result)
         print_to_file("\n*****TASK RESULT WITH SMART SEARCH*****\n" + summary_result + "\n", 'a')
-        if LLM_MODEL.startswith("llama"):
-            summary_result = check_list_truncation(summary_result.split("\n"), "Scrape result summary", int(LLAMA_CONTEXT*SUMMARY_RESULT_FACTOR))
-
-        print(f'\nWeb scrape content (filtered HTML extract, w/o style sheets, scripts and filtered for tags):\n{scrape_raw}\n')
+        context_size = int(LLAMA_CONTEXT*SUMMARY_RESULT_FACTOR)
+        if LLM_MODEL.startswith("llama") and len(summary_result) > context_size:
+            summary_result = summary_result[0:context_size]
+        #print(f'\nWeb scrape content (filtered HTML extract, w/o style sheets, scripts and filtered for tags):\n{scrape_raw}\n')
 
     return summary_result, search_results, scrape_page, scrape_raw, search_request, links
 
@@ -1112,7 +1145,7 @@ if not JOIN_EXISTING_OBJECTIVE:
 
 # Trigger initial smart search and setup document embedding vector store with results
 if ENABLE_SEARCH_EXTENSION and INITIAL_SEARCH:
-    initial_search(search_request=OBJECTIVE, task="", num_results=5, num_requests=10)
+    initial_search(search_request=OBJECTIVE, task="", num_results=5, num_requests=3)
 
 
 def main():
@@ -1165,13 +1198,14 @@ def main():
                             # Add web scrape result summary to memory file
                             scrape_summary = f'\nInternet search request: {search_request}\n\nWeb scrape result summary:\n{search_result}\n\nSources: {str(links)}\n'
                             file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
+                            print()
                             text_writer(file_path=file_path, input=scrape_summary, text="web scape result summary")
 
                             for element in page_raw:
-                                if len(element) > 1000:
+                                if len(str(element)) > 1000:
                                     # Add web scrape content to memory file
                                     link = links[page_raw.index(element)]
-                                    scrape_raw = f'\nWeb scrape content:\n{element}\n\n'
+                                    scrape_raw = f'\nWeb scrape content:\n{str(element)}\n--------------\n'
                                     file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
                                     text_writer(file_path=file_path, input=scrape_raw, text="web scrape content")
 
@@ -1186,11 +1220,21 @@ def main():
                 print("\033[93m\033[1m" + "\n*****RESULTS EMBEDDING IN DOCUMENT VECTORSTORE*****" + "\033[0m\033[0m")
                 print_to_file("\n*****RESULTS EMBEDDING IN DOCUMENT VECTORSTORE*****\n", 'a')
                 scrape_summary = f'\nInternet search request: {search_request}\n\nWeb scrape result summary:\n{search_result}\n'
-                scrape_raw = f'\nWeb scrape content:\n{page_raw}\n--------------\n'
+                scrape_raw = f'\nWeb scrape content:\n{page_raw}\n'
                 input = f'{scrape_summary}{scrape_raw}'
-                res = text_loader(EMBEDDINGS_STORE_NAME, input, links)
-                if res:
-                    db, retriever = update_db()
+
+                file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
+                write_flag = False
+                with open(file_path, 'r') as f:
+                    f.read()
+                    if scrape_raw not in f:
+                        write_flag = True
+                    else:
+                        print("Web scrape content already in memory file...")
+
+                if write_flag:
+                    if text_loader(EMBEDDINGS_STORE_NAME, input, str(links)):
+                        db, retriever = update_db()
 
             # Step 3: Enrich result and store in the results storage
             # This is where you should enrich the result if needed
