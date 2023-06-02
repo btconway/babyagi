@@ -42,6 +42,7 @@ TASK_RESULT_FACTOR = float(os.getenv("TASK_RESULT_FACTOR", 0.4))
 TASK_DESCRIPTION_FACTOR = float(os.getenv("TASK_DESCRIPTION_FACTOR", 0.2))
 TASK_NAME_FACTOR = float(os.getenv("TASK_NAME_FACTOR", 0.5))
 TASK_CONTEXT_FACTOR = float(os.getenv("TASK_CONTEXT_FACTOR", 0.25))
+SUMMARY_RESULT_FACTOR = float(os.getenv("SUMMARY_RESULT_FACTOR", 1.0))
 DOC_EMBEDDING_FACTOR = float(os.getenv("DOC_EMBEDDING_FACTOR", 0.4))
 
 # Internet search configuration
@@ -375,18 +376,27 @@ def check_list_truncation(task_list: List[str], text: str, context_size: int):
         try:
             task_counter = int(0)
             for t in task_list:
-                task_counter += len(t)
-                if (task_counter <= context_size):
-                    new_list.append(t)
+                if text != "Task context":
+                    task_counter += len(t)
+                    if (task_counter <= context_size):
+                        new_list.append(t)
+                    else:
+                        task_counter -= len(t)
+                        print(f'{text} is too long ({len(str(task_list))}), truncating to size: {task_counter}')
+                        break
                 else:
-                    task_counter -= len(t)
-                    print(f'\n{text} is too long ({len(str(task_list))}), truncating to size: {task_counter}')
-                    break
+                    if INITIAL_TASK not in t:
+                        task_counter += len(t)
+                        if (task_counter <= context_size):
+                            new_list.append(t)
+                        else:
+                            task_counter -= len(t)
+                            print(f'{text} is too long ({len(str(task_list))}), truncating to size: {task_counter}')
+                            break
             return new_list
         except:
-            max_tasks = int(3)
-            new_list = task_list[0:max_tasks]
-            print(f'\n{text} is too long ({len(str(task_list))}), reducing number of lines to: {max_tasks}')
+            new_list = task_list[0][0:context_size]
+            print(f'{text} has no lines and is too long ({len(str(task_list))}), truncating to size: {context_size}')
             print(f'New list: {new_list}')
             return new_list
     else:
@@ -398,41 +408,39 @@ def qa_retrieval(task: str, context_list: list, mode: str):
     if mode == "wiki":
         print(f"\033[96m\033[1m\n*****WIKIPEDIA CONTEXT*****\033[0m\033[0m\n{answer}")
         print_to_file(f"\n*****WIKIPEDIA CONTEXT*****\n{str(answer)}\n\n", 'a')
-        context = check_list_truncation(context_list, "Answer", int(embeddings_model_n_ctx*0.4))
-        doc_context = str("")
-
-        prompt = 'Verbalize the following task, considering the supplementary context and the objective as required, to an concise wikipedia search query.'
-        prompt += 'Output the query only, and only the query, do not add anything else.\n'
-        prompt += f'\nThis is the task: {task}'
-        prompt += '\nContext: ' + '\n'.join(context)
-        prompt += f'\nIgnore context related to: {INITIAL_TASK}'
-        prompt += f'\nObjective: {OBJECTIVE}'
-        prompt += f'\n\nYour response: '
-        print('Verbalizing task, context and objective to a wikipedia search query...\n')
-        query = openai_call(prompt, max_tokens=MAX_TOKENS)
-        if query.startswith("Query: "):
-            query = query.replace("Query: ", "")    
-        print(f'\nQuery:\n{query}\n\nAnswer:\n')
-
-        answer = wikipedia.run(query)
 
     elif mode == "embedding":
         print(f"\033[96m\033[1m\n*****DOCUMENT EMBEDDING CONTEXT*****\033[0m\033[0m")
-        context = check_list_truncation(context_list, "Answer", int(embeddings_model_n_ctx*0.4))
-        doc_context = str("")
-            
-        prompt = 'Verbalize the following task, considering the supplementary context and the objective as required, to an concise document embedding vector store search query.'
-        prompt += '\nDo not output any information before the query. Respond with the query and only the query.'
-        prompt += f'\nThis is the task: {task}'
-        prompt += '\nContext: ' + '\n'.join(context)
-        prompt += f'\nObjective: {OBJECTIVE}'
-        prompt += f'\n\nYour response: '
-        print('Verbalizing task, context and objective to a document embedding vector store query...\n')
-        query = openai_call(prompt, max_tokens=MAX_TOKENS)
-        if query.startswith("Query: "):
-            query = query.replace("Query: ", "") 
-        print(f'\nQuery:\n{query}\n\nAnswer:')
+    
+    if INITIAL_TASK in task and context_list == []:
+        context = []
+        context.append(OBJECTIVE)
+    else:
+        context_size = embeddings_model_n_ctx - len(task) - len(OBJECTIVE) - 300
+        if context_size <= 0:
+            context_size = int(LLAMA_CONTEXT*0.05)
+        print(f'Smart task context size limit: {int(context_size)}')
+        context = check_list_truncation(context_list, "Task context", int(context_size))
+        if len(context) != len(context_list):
+            print(f'Truncated task context: {context}')
+        
+    prompt = 'First, verbalize the task to a search query. Take into account that the query is processed by a AI as you, ensure that the query is concise and clear.'
+    prompt += f'\nTask: {task}'
+    prompt += '\nThen, consider the supplementary context as necessary for the query, while not introducing a new topic to the query.'
+    prompt += '\nContext: ' + ', '.join(context)
+    prompt += '\nRespond with the query only.'
+    prompt += '\n\nYour response: '
+    print('Verbalizing task to a query, considering supplementary context as necessary...\n')
+    query = openai_call(prompt, max_tokens=MAX_TOKENS)
 
+    if query.startswith("Query: "):
+        query = query.replace("Query: ", "") 
+    print(f'\nQuery:\n{query}\n\nAnswer:')
+
+    if mode == "wiki":
+        answer = wikipedia.run(query)
+        
+    elif mode == "embedding":
         res = qa(query)
         answer, docs = res['result'], [][0:LLAMA_CONTEXT] if args.hide_source else res[source_path]
         print()
@@ -440,14 +448,16 @@ def qa_retrieval(task: str, context_list: list, mode: str):
     
     if mode == "wiki" and answer.startswith("No good Wikipedia Search Result was found"):
         doc_context = str("")
-    elif mode == "embedding" and "Please provide me with more details" in answer:
+    elif mode == "embedding" and ("Please provide me with more details" in answer or answer.endswith("?")):
         doc_context = str("")
     elif mode == "embedding" and (answer.startswith("As an AI assistant") or answer.startswith("I'm sorry,")):
-        doc_context = str(answer.split(". "))
+        doc_context = str(answer.split(". "))[1]
     else:
         doc_context = str(answer)
 
-    doc_context = check_list_truncation(doc_context.split("\n"), "Document embedding context", int(LLAMA_CONTEXT*DOC_EMBEDDING_FACTOR))
+    context_size = LLAMA_CONTEXT - len(task) - len(OBJECTIVE) - len(str(context_list))
+    #print(f'\nCalculated context size available is {context_size}, with document embedding factor {DOC_EMBEDDING_FACTOR} -> Smart context size limit: {int(context_size*DOC_EMBEDDING_FACTOR)}')
+    doc_context = check_list_truncation(doc_context.split("\n"), "Document embedding context", int(context_size*DOC_EMBEDDING_FACTOR))
     return doc_context
     
 
@@ -791,32 +801,42 @@ def openai_call(
 
 # Create new tasks and store to task list
 def task_creation_agent(
-        objective: str, result: Dict, task_description: str, task_list: List[str], retry_flag: bool
+        objective: str, result: Dict, task_description: str, task_list: List[str]
 ):  
     # Limit the context size
-    if not retry_flag:
-        print(f"\n****TASK CREATION AGENT PROMPT****")
-        print_to_file(f"\n****TASK CREATION AGENT PROMPT****\n", 'a')
-        task_list = check_list_truncation(task_list, "Task list", int(LLAMA_CONTEXT*TASK_LIST_FACTOR))
-        result_data = str(check_list_truncation(str(result["data"]).split("\n"), "Task result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR)))
-        task_description = str(check_list_truncation(task_description.split("\n"), "Task description", int(LLAMA_CONTEXT*TASK_DESCRIPTION_FACTOR)))
+    print(f"\n****TASK CREATION AGENT PROMPT****")
+    print_to_file(f"\n****TASK CREATION AGENT PROMPT****\n", 'a')
+    #context_size = LLAMA_CONTEXT - len(objective) - len(task_description) - len(str(result["data"])) - len(str(task_list)) - 300
+    #print(f'\nCalculated context size remaining for task creation: {context_size}') 
+    task_list = check_list_truncation(task_list, "Task list", int(LLAMA_CONTEXT*TASK_LIST_FACTOR))
+
+    # Use enriched result "internet" if available
+    if result["internet"] == "":
+        result_data = check_list_truncation(str(result["data"]).split("\n"), "Task result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR))
     else:
-        task_list = check_list_truncation(task_list, "Task list", int(LLAMA_CONTEXT*(TASK_LIST_FACTOR/2)))
-        result_data = str(check_list_truncation(str(result["data"]).split("\n"), "Task result", int(LLAMA_CONTEXT*(TASK_RESULT_FACTOR/2))))
-        task_description = str(check_list_truncation(task_description.split("\n"), "Task description", int(LLAMA_CONTEXT*(TASK_DESCRIPTION_FACTOR/2))))
+        result_data = check_list_truncation(str(result["internet"]).split("\n"), "Web scrape summary result", int(LLAMA_CONTEXT*TASK_RESULT_FACTOR))
+    
+    result_output = str("")
+    for r in result_data:
+        result_output += f'{r}\n'
+
+    task_description = check_list_truncation(task_description.split("\n"), "Task description", int(LLAMA_CONTEXT*TASK_DESCRIPTION_FACTOR))
+    task_output = str("")
+    for t in task_description:
+        task_output += f'{t}\n'
          
     prompt = f"""
-You are to use the result from an execution agent to create new tasks with the following objective: {objective}\n
-The last completed task has the result: {result_data}\n
-This result was based on this task description: {task_description}.\n\n"""
+You are to use the result from an execution agent to create new tasks with the following objective:\n{objective}\n
+The last completed task has the result:\n{result_output}
+This result was based on this task description: {task_output}\n"""
 
     if LLM_MODEL.startswith("llama"):
         prompt += 'Do not create generic tasks. All tasks must be specific to the objective.\n'
     if task_list:
-        prompt += 'These are incomplete tasks: ' + '\n'.join(task_list)
-    prompt += "\nBased on the result, return a list of tasks to be completed in order to meet the objective. "
+        prompt += 'These are incomplete tasks:\n' + '\n'.join(task_list)
+    prompt += "\n\nBased on the result, return a list of tasks to be completed in order to meet the objective. "
     if task_list:
-        prompt += "These new tasks must not overlap with incomplete tasks. "
+        prompt += "These new tasks must not overlap with incomplete tasks."
 
     prompt += """
 Return one task per line in your response. The result must be a numbered list in the format:
@@ -831,10 +851,6 @@ Unless your list is empty, do not include any headers before your numbered list 
     response = openai_call(prompt, max_tokens=MAX_TOKENS)
     print(prompt)
     print_to_file(prompt + "\n", 'a')
-
-    #if LLM_MODEL.startswith("llama") and (len(response) < int(LLAMA_CONTEXT/100) and "There are no tasks to add at this time." not in response and response != ""):
-    #    print("Task creation response is truncated,... re-prompting with reduced context.")
-    #    return None
 
     print(f"\n****TASK CREATION AGENT RESPONSE****\n{response}")
     print_to_file(f"\n****TASK CREATION AGENT RESPONSE****\n{response}\n", 'a')
@@ -860,8 +876,9 @@ def prioritization_agent():
 
     print(f"\n****TASK PRIORITIZATION AGENT PROMPT****")
     print_to_file(f"\n****TASK PRIORITIZATION AGENT PROMPT****\n", 'a')
+    #context_size = LLAMA_CONTEXT - len(str(task_names)) - len(OBJECTIVE) - 300
+    #print(f'\nCalculated context size remaining for task prioritization: {context_size}')
 
-    # Limit the prioritization task list context size
     task_names = check_list_truncation(task_names, "Prioritization task list", int(LLAMA_CONTEXT*TASK_NAME_FACTOR))
 
     prompt = f"""
@@ -915,28 +932,24 @@ def execution_agent(objective: str, task: str) -> str:
         str: The response generated by the AI for the given task.
 
     """
-    context = context_agent(objective, top_results_num=5)
-
-    # Limit the completed task context size
+    context = context_agent(objective, task, top_results_num=5)
     context = check_list_truncation(context, "Context from previous tasks", int(LLAMA_CONTEXT*TASK_CONTEXT_FACTOR))
 
-    doc_context = ""
     if ENABLE_EMBEDDINGS_EXTENSION:
         doc_context = qa_retrieval(task, context, "embedding")
     if WIKI_CONTEXT:
         wiki_context = qa_retrieval(task, context, "wiki")
 
-    prompt = f'Perform one task based on the following objective: {OBJECTIVE}\nYour task: {task}\n'
+    prompt = f'Perform one task based on the following objective: {OBJECTIVE}\nYour task: {task}'
     if ENABLE_REPORT_EXTENSION and INITIAL_TASK not in task:
-        prompt += f'Consider the following action which shall be executed based on the objective. Ignore the action if the task deals with creation of a task list: {ACTION}\n'
+        prompt += f'\nConsider the following action which shall be executed based on the objective. This is the action: {ACTION}'
     if context:
-        prompt += 'Take into account these previously completed tasks: ' + '\n'.join(context)
-    if ENABLE_EMBEDDINGS_EXTENSION and doc_context != "":
+        prompt += '\nTake into account these previously completed tasks: ' + '\n'.join(context)
+    if ENABLE_EMBEDDINGS_EXTENSION and doc_context:
         prompt += f'\nConsider the answer on the task from related document embedding query: {doc_context}'
     elif WIKI_CONTEXT and wiki_context:
         prompt += f'\nConsider the answer on the task from wikipedia search query: {wiki_context}'
     if ENABLE_SEARCH_EXTENSION:
-        #prompt += f'\nDo your best to complete the task and provide a useful answer. Responding with the task content itself, a variation of it or vague suggestions, is not useful as well. In this case assume that internet search is required.'
         if ENABLE_EMBEDDINGS_EXTENSION:
             prompt += '\nIf internet search will most probably help to complete the task, add "Internet search request: " to the response and add the task redrafted to an optimal concise internet search request.'
         else:
@@ -948,7 +961,7 @@ def execution_agent(objective: str, task: str) -> str:
 
 
 # Get the top n completed tasks for the objective
-def context_agent(objective: str, top_results_num: int):
+def context_agent(objective: str, task: str, top_results_num: int):
     """
     Retrieves context for a given query from an index of tasks.
 
@@ -960,11 +973,14 @@ def context_agent(objective: str, top_results_num: int):
         list: A list of tasks as context for the given query, sorted by relevance.
 
     """
-    results = results_storage.query(query=objective, top_results_num=top_results_num)
-    print(f"\033[96m\033[1m\n*****RELEVANT CONTEXT*****\033[0m\033[0m\n{results}")
-    print_to_file(f"\n*****RELEVANT CONTEXT*****\n{results}\n", 'a')
-    # print("****RESULTS****")
-    # print(results)
+    print(f"\033[96m\033[1m\n*****RELEVANT CONTEXT*****\033[0m\033[0m")
+    print_to_file(f"\n*****RELEVANT CONTEXT*****\n", 'a')
+
+    query = task + " for objective: " + objective
+    results = results_storage.query(query=query, top_results_num=top_results_num)
+
+    print(results)
+    print_to_file(f'{results}\n', 'a')
     return results
 
 
@@ -1057,7 +1073,7 @@ def internet_agent(result: str, task: str):
         print("\033[93m\033[1m" + "\n*****TASK RESULT WITH SMART SEARCH*****" + "\033[0m\033[0m\n" + summary_result)
         print_to_file("\n*****TASK RESULT WITH SMART SEARCH*****\n" + summary_result + "\n", 'a')
         if LLM_MODEL.startswith("llama"):
-            summary_result = check_list_truncation(summary_result.split("\n"), "Scrape result summary", LLAMA_CONTEXT)
+            summary_result = check_list_truncation(summary_result.split("\n"), "Scrape result summary", int(LLAMA_CONTEXT*SUMMARY_RESULT_FACTOR))
 
         print(f'\nWeb scrape content (filtered HTML extract, w/o style sheets, scripts and filtered for tags):\n{scrape_raw}\n')
 
@@ -1176,22 +1192,18 @@ def main():
                 if res:
                     db, retriever = update_db()
 
-            # Check for result supplement
-            if summary_result != "":
-                result = f'{result}\n\n{summary_result}'
-            elif doc_result != "":
-                result = f'{result}\n\n{doc_result}'
-
             # Step 3: Enrich result and store in the results storage
             # This is where you should enrich the result if needed
             enriched_result = {
-                "data": result
+                "data": result,
+                "doc_result": doc_result,
+                "internet": summary_result
             }
             # extract the actual result from the dictionary
             # since we don't do enrichment currently
-            #vector = result + "\n\n" + doc_result + "\n\n" + summary_result + "\n\n" + page_raw
+            #vector = result + "\n\n" + doc_result + "\n\n" + summary_result
             result_id = f"result_{task['task_id']}"
-            results_storage.add(task, result, result_id)  
+            results_storage.add(task, str(enriched_result), result_id)  
 
             # Step 4: Create new tasks and re-prioritize task list
             # only the main instance in cooperative mode does that
@@ -1200,17 +1212,7 @@ def main():
                 enriched_result,
                 task["task_name"],
                 tasks_storage.get_task_names(),
-                False,
             )
-
-            if new_tasks == None:
-              new_tasks = task_creation_agent(
-                OBJECTIVE,
-                enriched_result,
-                task["task_name"],
-                tasks_storage.get_task_names(),
-                True,
-            )  
             
             print('Adding new tasks to task_storage...')
             for new_task in new_tasks:
