@@ -51,7 +51,7 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
             "num": num_extracts,
             "start": 1
         }
-        search_results = requests.get(url, params=params, timeout=5)
+        search_results = requests.get(url, params=params, timeout=10)
 
         if search_results.status_code == 200:
             try:
@@ -59,7 +59,7 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
                 if "items" in json_data:
                     search_results = json_data["items"]
                 else:
-                    print("Error: No items found in the response.")
+                    print("Error: No items found in the response")
                     search_results = []
                     if SERPAPI_API_KEY:
                         mode = "serpapi"
@@ -152,7 +152,7 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
 
     # Error handling
     if mode not in ["google", "serpapi", "browser"]:
-        print(f'Error: Smart search mode "{mode}" is out-of-range.')
+        print(f'Error: Smart search mode "{mode}" is out-of-range')
 
     # Scrape and sumarize the search results
     i = int(0)
@@ -272,7 +272,7 @@ def web_scrape_tool(url: str, task: str, summary_mode: bool):
 
     # Extract with bs4 for summarization and newspaper3k for raw page content
     raw = extract_text_extended(content)
-    print("\033[90m\033[3m" + f"Raw page content extracted using BeautifulSoup with stricter filtering with length: {len(raw)}\033[0m")
+    print("\033[90m\033[3m" + f"Raw page content extracted using BeautifulSoup with strict filtering and length: {len(raw)}\033[0m")
     text = extract_text(content)
     links = extract_links(content)
 
@@ -356,7 +356,7 @@ def extract_relevant_info(objective, large_string, task):
                 chunk = large_string[i:i + chunk_size]
                 messages = f'Objective: {objective} Task: {task}\n\n'
                 messages += f'Analyze the following text and extract information relevant to the objective and task, and only relevant information to the objective and task. Consider incomprehensible or implausible information, or information which is a string of bullet points or keywords and not verbalized in sentences as not relevant. If there is no relevant information do not say that there is no relevant information related to our objective. ### Then, update or start our notes provided here (keep blank if currently blank, if notes include a string of keywords or letters, delete the notes): {notes}. ### Text to analyze: {chunk}. ### Updated Notes: '
-                response = llm(prompt=messages[0:CONTEXT_LENGTH],
+                response = llm(prompt=messages,
                             stop=["###"],
                             echo=False,
                             temperature=SUMMARY_TEMPERATURE,
@@ -367,11 +367,12 @@ def extract_relevant_info(objective, large_string, task):
                 
                 if response['choices'][0]['text'].strip()+". " not in notes:
                     notes += response['choices'][0]['text'].strip()+". "
+                print(f'Prompt length: {len(messages)}')
                 print(f"Search summary result with current length {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
     
     # Otherwise setup GPT-3 model
     else:
-        chunk_size = int(CONTEXT_LENGTH/2)
+        chunk_size = int(CONTEXT_LENGTH)
         overlap = int(chunk_size*0.1)
 
         for i in range(0, len(large_string), chunk_size - overlap):
