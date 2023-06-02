@@ -357,7 +357,7 @@ def extract_relevant_info(objective, large_string, task):
                 chunk = large_string[i:i + chunk_size]
                 messages = f'Objective: {objective} Task: {task}\n\n'
                 messages += f'Analyze the following text and extract information relevant to the objective and task, and only relevant information to the objective and task. Consider incomprehensible or implausible information, or information which is a string of bullet points or keywords and not verbalized in sentences as not relevant. If there is no relevant information do not say that there is no relevant information related to our objective. ### Then, update or start our notes provided here (keep blank if currently blank, if notes include a string of keywords or letters, delete the notes): {notes}. ### Text to analyze: {chunk}. ### Updated Notes: '
-                response = llm(prompt=messages,
+                response = llm(prompt=messages[0:CONTEXT_LENGTH],
                             stop=["###"],
                             echo=False,
                             temperature=SUMMARY_TEMPERATURE,
