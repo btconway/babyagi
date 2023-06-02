@@ -10,6 +10,7 @@ Toplist Google search, subsequent web page scraping and finally LLM powered scra
   - Fallback mechanism in case of API rate limit or missing API key (CSE -> SERPAPI -> browser search). Works also w/o any API key with browser search.
   - Adding of a second web page scrape function for retrieval of a more compact and clean extract (used for document embedding, see below)
   - The LLM does reason on its own when internet search is required and in this case verbalizes the task as a concise search request
+  - The availibility of browser search might be restricted, due to blocking of script's user agent by the server
 
 The scrape result summary LLM has its own model & settings, separate from task process LLM. See .env file for details.
 
