@@ -111,7 +111,7 @@ You can find precompiled .bin files of popular Llamas for example in this repo: 
 - https://gpt4all.io/models/ggml-wizardLM-7B.q4_2.bin (md5sum 99e6d129745a3f1fb1121abed747b05a) An non-commercially licensable model based on Llama 7b and trained by Microsoft and Peking University.
 - https://gpt4all.io/models/ggml-vicuna-7b-1.1-q4_2.bin (md5sum 29119f8fa11712704c6b22ac5ab792ea) An non-commercially licensable model based on Llama 7b and trained by teams from UC Berkeley, CMU, Stanford, MBZUAI, and UC San Diego.
 
-The models wizardLM-7B and vicuna-7B do work best for me on MacBook M1 with 16GB RAM. Unfortunately I am not able to persuade a 13B model to run with a reasonable token rate. Runs at something like 1 token per minute.
+The models wizardLM-7B and vicuna-7B work best for me, using a MacBook M1 with 16GB RAM. Unfortunately I am not able to persuade a 13B model to run with a reasonable token rate. Runs at something like 1 token per minute.
 
 Some popular models like mpt-7B (chat, instruct and storyteller) or the new Guanaco-7B are not working. I think a newer version of Llama-Cpp is required, still need to have a look into this.
 
