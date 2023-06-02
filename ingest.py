@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # The loading & embedding functionality is from: https://github.com/imartinez/privateGPT.git
-# The files constants.py and ingest.py from repo have been combined into this file
+# The files constants.py and ingest.py from repo have been combined into this file and further modified
 # Many thanks to https://github.com/imartinez for the great work!
 
 import os
@@ -35,7 +35,9 @@ load_dotenv()
 
 
 # Load environment variables
-persist_directory = os.environ.get('DOC_STORE_NAME')
+SCRAPE_SOURCE_PATH = os.environ.get('SCRAPE_SOURCE_PATH', 'scrape_documents')
+
+persist_directory = os.environ.get('EMBEDDINGS_STORE_NAME')
 source_directory = os.environ.get('DOC_SOURCE_PATH', 'source_documents')
 embeddings_model_name = os.environ.get('EMBEDDINGS_MODEL_NAME')
 chunk_size = 500
@@ -92,6 +94,51 @@ LOADER_MAPPING = {
 }
 
 
+# Check if content is already stored in Q&A document
+def check_content(file_path: str, input: str, text: str):
+    with open(file_path, 'r') as f:
+        f.read()
+        if input not in f:
+            print(f"Store {text} in Q&A document: {file_path}")
+            return True
+        else:
+            print(f"{text} already stored in Q&A document.")
+            return False
+
+
+# Write text to file
+def text_writer(file_path: str, input: str, text: str):
+    # Check if file exists
+    try:
+        with open(file_path, 'r') as f:
+            mode = 'a'
+    except:
+        mode = 'w'
+
+    # Create/Overwrite files for initial and continuous web scrape to file
+    if text == "initial web scrape" or text == "web scrape to file":
+        mode = 'w'
+
+    # Setup write flag
+    if mode == 'a':
+        write_flag = check_content(file_path, input, text)
+    else:
+        write_flag = True
+
+    # Write fo file
+    if input and write_flag:
+        if input.startswith("As an AI assistant"):
+            input = input.split(". ")[1]
+        with open(file_path, mode) as f:
+            f.write(input)
+        return input
+    elif not write_flag:
+        return ""
+    else:
+        print("Error: Extracting text failed")
+        return ""
+
+
 def load_single_document(file_path: str) -> Document:
     ext = "." + file_path.rsplit(".", 1)[-1]
     if ext in LOADER_MAPPING:
@@ -118,8 +165,20 @@ def load_documents(source_dir: str, ignored_files: List[str] = []) -> List[Docum
         results = []
         with tqdm(total=len(filtered_files), desc='Loading new documents', ncols=80) as pbar:
             for i, doc in enumerate(pool.imap_unordered(load_single_document, filtered_files)):
-                results.append(doc)
-                pbar.update()
+                # Check if data has already been loaded
+                write_flag = False
+                with open(file_path, 'r') as f:
+                    f.read()
+                    if doc.page_content not in f:
+                        write_flag = True
+                        input = f'\n--------------\nWeb scrape content:\n{doc.page_content}\n\nSource: N/A\n--------------\n'
+                        file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
+                        text_writer(file_path=file_path, input=input, text="web scrape content")
+                        
+                # Update results
+                if write_flag:
+                    results.append(doc)
+                    pbar.update()
 
     return results
 
@@ -179,3 +238,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
