@@ -33,8 +33,7 @@ Adding of stand-alone scripts as supplementary tools for BabyAGI:
   - ingest.py: Document loader, documents in subfolder "source_documents" are loaded and embedded in a document embedding vector store (from privateGPT repo with minor changes)
   - qa-retrieval.py: Q&A retrieval with document embedding vector store, useful for database evaluation (slightly modified version of privateGPT.py)
 
-All stand-alone scripts use BabyAGI parameters from .env file, see the document embedding extension and the description in comments.
-The document embedding LLM has its own model & settings, separate from task process LLM. See .env file for details.
+All stand-alone scripts use BabyAGI parameters from .env file. The document embedding LLM has its own model & settings, separate from task process LLM. See .env file for details.
 
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-DocEmbedding.jpeg)
 
