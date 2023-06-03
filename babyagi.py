@@ -130,6 +130,12 @@ if ENABLE_REPORT_EXTENSION:
     REPORT_FILE = os.getenv("REPORT_FILE", "report.txt")
     ACTION = os.getenv("ACTION", "")
 
+    chapter = str("")
+    title = str("")
+    content = str("")
+    report = []
+
+
     # Write to summary file
     def write_report(file: str, text: str, mode: chr):
         try:
@@ -151,61 +157,118 @@ if ENABLE_REPORT_EXTENSION:
     def check_report(result: str):
         if ("Task List" or "Task list" and "task list") not in result[0:50]:
             try:
+                # Detect code blocks (continuous appending to file)
                 if "```" in result:
+                    file_name = REPORT_FILE.split(".")[0] + "_code.txt"
                     if result.count("```") > 1:
                         block_counter = int(result.count("```")/2)
                     else:
                         block_counter = result.count("```")
                     for i in range(block_counter):
-                        write_report(REPORT_FILE, "\n```" + result.split("```")[i+1], 'a')
+                        write_report(file_name, "\n```" + result.split("```")[i+1], 'a')
 
-                    write_report(REPORT_FILE, "\n", 'a')
-                    print(f'{block_counter} code blocks written to file: {REPORT_FILE}')
+                    write_report(file_name, "\n", 'a')
+                    print(f'{block_counter} code blocks written to file: {file_name}')
 
+                # Detect text blocks (update of file)
                 elif "###" in result:
+                    file_name = REPORT_FILE.split(".")[0] + "_text.txt"
                     lines = result.split("\n")
                     block_counter = int(0)
                     for l in lines:
-                        if l.startswith("###") and len(l) > 5:
-                            write_report(REPORT_FILE, "\n" + l, 'a')
+                        if l.startswith("###") and len(l) > 5 and not l.startswith("As an AI assistant"):
+                            #write_report(file_name, "\n" + lines[block_counter], 'a')
                             block_counter += 1
+                            chapter = ""
+                            title = l.split("###")[1]
+                            content = lines[1:]
+                            report_result = {
+                                "chapter": chapter,
+                                "title": title,
+                                "content": content
+                            }
 
-                    write_report(REPORT_FILE, "\n", 'a')
-                    print(f'{block_counter} report blocks written to file: {REPORT_FILE}')
+                            # Check if chapter already exists
+                            for r in report:
+                                if r["title"] == title:
+                                    r["content"] += "\n" + content
+                                    report.insert(report.index(r), r)
+                                else:
+                                    report.append(report_result)
+
+                    # Print and write report to file
+                    if len(report) > 0:
+                        input = ""
+                        counter = int(0)
+                        for r in report:
+                            counter += 1
+                            r["chapter"] = f'Chapter {counter}'
+                            print(f'Chapter: {r["chapter"]}')
+                            print(f'Title: {r["title"]}')
+                            print(f'Content: {r["content"]}\n')
+                            input += f'{r["chapter"]}\n{r["title"]}\n{r["content"]}\n\n'
+
+                        with open(file_name, 'w') as f:
+                            f.write(f'# In this file BabyAGI stores a report, as configured in .env file under ENABLE_REPORT_EXTENSION.\n\n')
+                            f.write(f'OBJECTIVE: {OBJECTIVE}')
+                            if ENABLE_REPORT_EXTENSION:
+                                f.write(f'ACTION: {ACTION}')
+                            f.write('\n---------------------------\n')
+                            f.write(input)
+                        print(f'Report file updated with {counter} blocks, written to file: {file_name}')
 
             except Exception as e:
                 print(f"Error: Checking results for adding to report file failed with {e}")
 
     # Check if report file exists
-    def check_report_file(file: str):
+    def check_report_file(file_path: str, text: str):
         try:
             res = False
-            with open(file, 'r') as f:
+            with open(file_path, 'r') as f:
                 lines = f.readlines()
-                if OBJECTIVE in lines[3]:
-                    print(f"Objective is unchanged, use existing report file and append new text...")
-                    res = True
+                if OBJECTIVE in lines[2]:
+                    print(f"Objective is unchanged, use existing report file: {file_path}")
+
+                    # Setup report structure from existing file
+                    if "_text.txt" in file_path:
+                        report_text = f.read()
+                        report_text = report_text.split("---------------------------")[1]
+                        lines = report_text.split("\n\n")
+                        for l in lines:
+                            if l.startswith("Chapter"):
+                                chapter = l
+                            elif l.startswith("Title"):
+                                title = l
+                            elif l.startswith("Content"):
+                                content = l
+                                report_result = {
+                                    "chapter": chapter,
+                                    "title": title,
+                                    "content": content
+                                }
+                                report.append(report_result)
+                res = True
+
             if not res:
-                with open(file, 'w') as f:
-                    print("Objective for report file has changed, overwrite file...")
-                    f.write(f'# In this file BabyAGI stores information, as configured in .env file under ENABLE_REPORT_EXTENSION.\n')
-                    f.write(f'# The output is derived step-by-step and new information is appended to the file...\n\n')
+                with open(file_path, 'w') as f:
+                    print(f"{text} report file objective has changed, overwrite file: {file_path}")
+                    f.write(f'# In this file BabyAGI stores a report, as configured in .env file under ENABLE_REPORT_EXTENSION.\n\n')
                     f.write(f'OBJECTIVE: {OBJECTIVE}')
                     if ENABLE_REPORT_EXTENSION:
-                        f.write(f'Action: {ACTION}')
+                        f.write(f'\nACTION: {ACTION}')
                     f.write('\n---------------------------\n')
             
         except:
-            with open(file, 'w') as f:
-                print("Report file does not exists, create file...")
-                f.write(f'# In this file BabyAGI stores information, as configured in .env file under ENABLE_REPORT_EXTENSION.\n')
-                f.write(f'# The output is derived step-by-step and new information is appended to the file...\n\n')
+            with open(file_path, 'w') as f:
+                print(f"{text} report file does not exists, create file: {file_path}")
+                f.write(f'# In this file BabyAGI stores a report, as configured in .env file under ENABLE_REPORT_EXTENSION.\n\n')
                 f.write(f'OBJECTIVE: {OBJECTIVE}')
                 if ENABLE_REPORT_EXTENSION:
-                    f.write(f'Action: {ACTION}')
+                    f.write(f'\nACTION: {ACTION}')
                 f.write('\n---------------------------\n')
-                
-    check_report_file(REPORT_FILE)
+
+    check_report_file(REPORT_FILE.split(".")[0] + "_code.txt", "Code")           
+    check_report_file(REPORT_FILE.split(".")[0] + "_text.txt", "Text")
         
 
 # Document embedding with Q&A retrieval using langchain (multiple file types supported)
@@ -1272,7 +1335,7 @@ def main():
             # Sleep a bit before checking the task list again
             time.sleep(5)
 
-        else:
+        else:   
             print('Done.')
             loop = False
 
