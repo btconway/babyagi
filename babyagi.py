@@ -125,7 +125,6 @@ if DOTENV_EXTENSIONS:
 
 
 # Output to file for creation of step-by-step report
-# TODO: This is a bit of a hack, but it works for now
 if ENABLE_REPORT_EXTENSION:
     REPORT_FILE = os.getenv("REPORT_FILE", "report.txt")
     ACTION = os.getenv("ACTION", "")
@@ -159,6 +158,7 @@ if ENABLE_REPORT_EXTENSION:
             try:
                 # Detect code blocks (continuous appending to file)
                 if "```" in result:
+                    print('Code block tag ``` detected...')
                     file_name = REPORT_FILE.split(".")[0] + "_code.txt"
                     if result.count("```") > 1:
                         block_counter = int(result.count("```")/2)
@@ -171,42 +171,63 @@ if ENABLE_REPORT_EXTENSION:
                     print(f'{block_counter} code blocks written to file: {file_name}')
 
                 # Detect text blocks (update of file)
-                elif "###" in result:
+                elif "###" and not "'###'" in result:
+                    print('Tag ### detected in result...')
                     file_name = REPORT_FILE.split(".")[0] + "_text.txt"
-                    lines = result.split("\n")
+                    parts = result.split("###")
                     block_counter = int(0)
-                    for l in lines:
-                        if l.startswith("###") and len(l) > 5 and not l.startswith("As an AI assistant"):
-                            #write_report(file_name, "\n" + lines[block_counter], 'a')
+                    write_flag = False
+                    for part in parts:
+                        if result.startswith("###") and len(part) > 5 and not part.startswith("As an AI assistant") and part.find("\n") != -1:
                             block_counter += 1
-                            chapter = ""
-                            title = l.split("###")[1]
-                            content = lines[1:]
+                            print(f'Tag ### detected in part: {block_counter}')
+                            write_flag = True
+                            line = part.split("\n")
+                            title = line[0].strip()
+                            content = line[1:]
+                            buffer = content[0].split(", ")
+                            content = ""
+                            for i in range (len(buffer)):
+                                text = buffer[i].replace("[", "")
+                                text = text.replace("]", "")
+                                text = text.replace("'", "")
+                                content += text + " "
+                            
                             report_result = {
-                                "chapter": chapter,
                                 "title": title,
                                 "content": content
                             }
 
-                            # Check if chapter already exists
+                            print(f'\nDetected title: {title}')
+                            print(f'Content of block:\n{content}\n')
+
+                            # Check new report entry for append, insert or ignore
+                            insert_flag = False
                             for r in report:
                                 if r["title"] == title:
-                                    r["content"] += "\n" + content
-                                    report.insert(report.index(r), r)
-                                else:
-                                    report.append(report_result)
+                                    if content not in r["content"]:
+                                        r["content"] += "\n" + content
+                                        report.insert(report.index(r), r)
+                                        print(f'New content for title {r["title"]}, appending...')
+                                    else:
+                                        print(f'Exisiting content for title {r["title"]} detected, not appending.')
+                                    insert_flag = True
+                                    break
 
-                    # Print and write report to file
-                    if len(report) > 0:
+                            if not insert_flag:
+                                report.append(report_result)
+                                print(f'Title {report_result["title"]} with content added to report..')
+
+                    # Write report to file
+                    if len(report) > 0 and write_flag:
+                        print(f'Writing report to file: {file_name}')
                         input = ""
                         counter = int(0)
                         for r in report:
                             counter += 1
-                            r["chapter"] = f'Chapter {counter}'
-                            print(f'Chapter: {r["chapter"]}')
                             print(f'Title: {r["title"]}')
                             print(f'Content: {r["content"]}\n')
-                            input += f'{r["chapter"]}\n{r["title"]}\n{r["content"]}\n\n'
+                            input += f'### {r["title"]}\n{r["content"]}\n\n'
 
                         with open(file_name, 'w') as f:
                             f.write(f'# In this file BabyAGI stores a report, as configured in .env file under ENABLE_REPORT_EXTENSION.\n\n')
@@ -222,51 +243,45 @@ if ENABLE_REPORT_EXTENSION:
 
     # Check if report file exists
     def check_report_file(file_path: str, text: str):
-        try:
-            res = False
-            with open(file_path, 'r') as f:
-                lines = f.readlines()
-                if OBJECTIVE in lines[2]:
-                    print(f"Objective is unchanged, use existing report file: {file_path}")
+        res = False
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+            if OBJECTIVE in lines[2]:
+                print(f"Objective is unchanged, use existing report file: {file_path}")
 
-                    # Setup report structure from existing file
-                    if "_text.txt" in file_path:
-                        report_text = f.read()
-                        report_text = report_text.split("---------------------------")[1]
-                        lines = report_text.split("\n\n")
-                        for l in lines:
-                            if l.startswith("Chapter"):
-                                chapter = l
-                            elif l.startswith("Title"):
-                                title = l
-                            elif l.startswith("Content"):
-                                content = l
-                                report_result = {
-                                    "chapter": chapter,
-                                    "title": title,
-                                    "content": content
-                                }
-                                report.append(report_result)
-                res = True
+                # Setup report structure from existing file
+                if "_text.txt" in file_path:
+                    start_index = lines.index("---------------------------\n") + 1
+                    parts = ""
+                    for i in range (start_index, len(lines)):
+                        parts += lines[i].strip() + "\n"
+                    parts = parts.split("###")
+                    print()
+                    for i in range (1, len(parts)):
+                        chapter = ""
+                        title = parts[i].split("\n")[0].strip()
+                        content = parts[i].split("\n")[1].strip()
+                        report_result = {
+                            "chapter": chapter,
+                            "title": title,
+                            "content": content
+                        }
+                        report.append(report_result)
+                        print(f'Reading report part {i} with title: {report_result["title"]}')
+                        print(f'{report_result["content"]}\n')
+                    print("Report structure has been setup...\n")
+            res = True
 
-            if not res:
-                with open(file_path, 'w') as f:
-                    print(f"{text} report file objective has changed, overwrite file: {file_path}")
-                    f.write(f'# In this file BabyAGI stores a report, as configured in .env file under ENABLE_REPORT_EXTENSION.\n\n')
-                    f.write(f'OBJECTIVE: {OBJECTIVE}')
-                    if ENABLE_REPORT_EXTENSION:
-                        f.write(f'\nACTION: {ACTION}')
-                    f.write('\n---------------------------\n')
-            
-        except:
+        if not res:
             with open(file_path, 'w') as f:
-                print(f"{text} report file does not exists, create file: {file_path}")
+                print(f"{text} report file objective has changed or file does not exist, new file: {file_path}")
                 f.write(f'# In this file BabyAGI stores a report, as configured in .env file under ENABLE_REPORT_EXTENSION.\n\n')
                 f.write(f'OBJECTIVE: {OBJECTIVE}')
                 if ENABLE_REPORT_EXTENSION:
                     f.write(f'\nACTION: {ACTION}')
                 f.write('\n---------------------------\n')
 
+    print('\nChecking report files...')
     check_report_file(REPORT_FILE.split(".")[0] + "_code.txt", "Code")           
     check_report_file(REPORT_FILE.split(".")[0] + "_text.txt", "Text")
         
@@ -405,8 +420,8 @@ if ENABLE_SEARCH_EXTENSION:
                                                     file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
                                                     write_flag = False
                                                     with open(file_path, 'r') as f:
-                                                        f.read()
-                                                        if str(element) not in f:
+                                                        content = str(f.readlines())
+                                                        if str(element) not in content:
                                                             write_flag = True
                                                         else:
                                                             print(f'Web scrape content already embedded in document vectorstore...')
@@ -522,15 +537,17 @@ def qa_retrieval(task: str, context_list: list, mode: str):
         
     prompt = 'First, verbalize the task to a search query. Take into account that the query is processed by a AI as you, ensure that the query is concise and clear.'
     prompt += f'\nTask: {task}'
-    prompt += '\nThen, consider the supplementary context as necessary for the query, while not introducing a new topic to the query.'
+    prompt += '\nThen, consider the supplementary context as necessary for the query.'
     prompt += '\nContext: ' + ', '.join(context)
-    prompt += '\nRespond with the query only.'
+    prompt += 'Then, take care that the query is not too complex for the query processing AI, simplify as required.'
+    prompt += '\nRespond with the query only, do not add any other output before or after.'
     prompt += '\n\nYour response: '
     print('Verbalizing task to a query, considering supplementary context as necessary...')
     query = openai_call(prompt, max_tokens=MAX_TOKENS)
 
     if query.startswith("Query: "):
-        query = query.replace("Query: ", "") 
+        query = query.replace("Query: ", "")
+        query = query.replace('"', '')
     print(f'\nQuery:\n{query}\n\nAnswer:')
 
     if mode == "wiki":
@@ -560,12 +577,17 @@ def qa_retrieval(task: str, context_list: list, mode: str):
 def check_file(file_name: str):
     try:
         # Check task list output file
-        with open(file_name, 'r') as f:
-            lines = f.readlines()
-            if OBJECTIVE in lines[2]:
+        if file_name == 'task_list.txt':
+            with open(file_name, 'r') as f:
+                lines = f.readlines()
+                if OBJECTIVE in lines[2]:
+                    return 'a'
+                else:
+                    return 'w'
+        elif file_name == "task_memory.txt":
+            with open(file_name, 'r') as f:
                 return 'a'
-            else:
-                return 'w'
+                
     except:
         return 'w'
     
@@ -942,12 +964,16 @@ Unless your list is empty, do not include any headers before your numbered list 
 \nYour response: """
 
     response = openai_call(prompt, max_tokens=MAX_TOKENS)
-    #print(f'Prompt length: {len(prompt)}')
+
+    # Supplementary check for update of report (in case context has been lost in last execution agent response)
+    if ENABLE_REPORT_EXTENSION:
+        check_report(response)
+
     print(prompt)
     print_to_file(prompt + "\n", 'a')
 
-    print(f"\n****TASK CREATION AGENT RESPONSE****\n{response}")
-    print_to_file(f"\n****TASK CREATION AGENT RESPONSE****\n{response}\n", 'a')
+    print(f"\n****TASK CREATION AGENT RESPONSE****\n{response}\n")
+    print_to_file(f"\n****TASK CREATION AGENT RESPONSE****\n{response}\n\n", 'a')
     new_tasks = response.split('\n')
     new_tasks_list = []
     for task_string in new_tasks:
@@ -1206,6 +1232,26 @@ if not JOIN_EXISTING_OBJECTIVE:
     }
     tasks_storage.append(initial_task)
 
+# Backup last task list from file
+if LLM_MODEL.lower().startswith("llama") and check_file('task_list.txt') == 'a' and check_file('task_memory.txt') == 'a':
+    with open("task_memory.txt", 'r') as f:
+        print("\nRestoring task list...")
+        buffer = f.readlines()
+        if buffer != []:
+            buffer = buffer[0].split(", ")
+            for i in range (len(buffer)):
+                text = buffer[i].replace("[", "")
+                text = text.replace("]", "")
+                text = text.replace("'", "")
+                print(f"Restoring task {i+1}: {text.strip()}")
+                stored_task = {
+                    "task_id": tasks_storage.next_task_id(),
+                    "task_name": text.strip()
+                }
+                tasks_storage.append(stored_task)
+        else:
+            print("No task list found in memory file.")
+
 # Trigger initial smart search and setup document embedding vector store with results
 if ENABLE_SEARCH_EXTENSION and INITIAL_SEARCH:
     initial_search(search_request=OBJECTIVE, task="", num_results=5, num_requests=3)
@@ -1289,8 +1335,8 @@ def main():
                 file_path = SCRAPE_SOURCE_PATH + "/scrape_memory.txt"
                 write_flag = False
                 with open(file_path, 'r') as f:
-                    f.read()
-                    if scrape_raw not in f:
+                    content = str(f.readlines())
+                    if scrape_raw not in content:
                         write_flag = True
                     else:
                         print("Web scrape content already in memory file...")
@@ -1331,6 +1377,12 @@ def main():
                 prioritized_tasks = prioritization_agent()
                 if prioritized_tasks:
                     tasks_storage.replace(prioritized_tasks)
+            
+            # Step 5: Store latest task list to file (for recovery after re-start)
+            if LLM_MODEL.startswith("llama"):
+                stored_tasks = tasks_storage.get_task_names()
+                with open("task_memory.txt", 'w') as f:
+                    f.write(str(stored_tasks))
 
             # Sleep a bit before checking the task list again
             time.sleep(5)
