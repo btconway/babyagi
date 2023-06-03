@@ -62,11 +62,11 @@ Even more interesting it gets in combination with smart internet search, documen
 
 Running continuously with a 7B-Llama,... creating & processing the task list, analysing web scrape results, doing Q&A retrieval with embedded document store, all in parallel and w/o getting stuck in loops or aborting prematurely. 😋
 
-## 🧫 Report creation extension (experimental)
+## 🧫 Report creation extension
 
 With this extension enabled, the task results and smart search results are getting analyzed for a marker. The marker and what shall be done is defined in a supplementary instruction for the objective, called "ACTION". The functionality is pretty basic up to now, but important results are properly marked, identified and added to the report file. Works also with code!
 
-This feature, when finished, shall create a report, summary or code as output to a file, involving parsing, loading and update of the report file.
+The report is getting updated continuously, new information is appended per chapter. Code extracts are stored in a separate file.
 
 ************************************************************
 
