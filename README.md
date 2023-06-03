@@ -50,7 +50,7 @@ With enabled document embedding extension the updated vector store then provides
 
 ![image](https://github.com/robiwan303/babyagi/blob/main/BabyAGI-Memory.jpeg)
 
-Beside the update of embedding vector store above, the extended result data is written to file, serving as backup. The data is stored in folder "scrape_documents". When the vector store is deleted, the "memory" still exists in this file. The file can be used for embedding again using stand-alone script ingest.py (see document embedding extension).
+Beside the update of embedding vector store above, the extended result data is written to file, serving as backup. The data is stored in folder "scrape_documents". When the vector store is deleted, the "memory" still exists. The files can be used for embedding again using stand-alone script ingest.py (see document embedding extension).
 
 ## 🦙 Full Llama support: 100% local operation possible
 By implementing a strategie for applying different context limits to e.g. document embedding, task context or various inputs for the task creation and prioritization agents, and changing the Llama setup a bit, it is possible to have BabyAGI run quite stable with a 7B-Llama.
