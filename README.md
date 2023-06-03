@@ -2,7 +2,6 @@
 
 This is a side branch of BabyAGI with some enhancements... 🚀
 
-************************************************************
 
 ## 🔍 Smart internet search extension
 Toplist Google search, subsequent web page scraping and finally LLM powered scrape result summarization (reading of lengthy scrape result in chunks).
