@@ -123,16 +123,16 @@ def web_search_tool(query: str, task: str, num_extracts: int, mode: str, summary
             browser_header = {'User-Agent': user_agents_list[index]}
             search_results = requests.get(url, headers=browser_header, timeout=10)
             if search_results.status_code == 200:
+                i = int(0)
                 try:
                     soup = BeautifulSoup(search_results.text, 'html.parser')
                     links = []
-                    i = int(0)
                     for result in soup.select("a.result__url"):
                         url = result["href"]
+                        i+=1
                         if url:
                             links.append(url)
                             print("\033[90m\033[3m" + f"Webpage URL: {url}\033[0m")
-                            i+=1
                         if i >= num_extracts:
                             access_counter = 3
                             break
@@ -356,7 +356,7 @@ def extract_relevant_info(objective, large_string, task):
             for i in range(0, len(large_string), chunk_size - overlap):
                 chunk = large_string[i:i + chunk_size]
                 messages = f'Objective: {objective} Task: {task}\n\n'
-                messages += f'Analyze the following text and extract information relevant to the objective and task, and only relevant information to the objective and task. Consider incomprehensible or implausible information, or information which is a string of bullet points or keywords and not verbalized in sentences as not relevant. If there is no relevant information do not say that there is no relevant information related to our objective. ### Then, update or start our notes provided here (keep blank if currently blank, if notes include a string of keywords or letters, delete the notes): {notes}. ### Text to analyze: {chunk}. ### Updated Notes: '
+                messages += f'Analyze the following text and extract information relevant to the objective and task, and only relevant information to the objective and task. Consider incomprehensible or implausible information, or information which is a string of bullet points, keywords or numbers/characters and not verbalized in sentences, as not relevant. If there is no relevant information do not say that there is no relevant information related to our objective. ### Then, update or start our notes provided here (keep blank if currently blank, if nothing relevant is in notes, delete the notes): {notes}. ### Text to analyze: {chunk}. ### Updated Notes: '
                 response = llm(prompt=messages[0:CONTEXT_LENGTH],
                             stop=["###"],
                             echo=False,
@@ -368,8 +368,8 @@ def extract_relevant_info(objective, large_string, task):
                 
                 if response['choices'][0]['text'].strip()+". " not in notes:
                     notes += response['choices'][0]['text'].strip()+". "
-                print(f'Prompt length: {len(messages)}')
-                print(f"Search summary result with current length {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
+                print(f'\nPrompt length: {len(messages)}')
+                print(f"Search summary result with current chunk index {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
     
     # Otherwise setup GPT-3 model
     else:
@@ -391,7 +391,7 @@ def extract_relevant_info(objective, large_string, task):
                 temperature=0.7,
             )
             notes += response.choices[0].message['content'].strip()+". "
-            #print(f"Search summary result with current length {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
+            #print(f"Search summary result with current chunk index {i} and {int((len(large_string))/(chunk_size-overlap))} parts:\n" + response['choices'][0]['text'].strip()+". ")
 
     return notes
 
