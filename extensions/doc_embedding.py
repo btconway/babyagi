@@ -218,7 +218,7 @@ def process_text(qa_result: str, links: str) -> List[Document]:
     print(f"Appending all available results to document embedding store...")
     
     # Using a dictionary for metadata
-    sources = {"source": links if links else llama_type}
+    sources = {"source": links if links else "No source available"}
     document = Document('\n'.join([qa_result]), sources)
 
     if not document.page_content:
@@ -232,17 +232,22 @@ def process_text(qa_result: str, links: str) -> List[Document]:
     return texts
 
 
-# Check if content is already stored in Q&A document
-def check_content(file_path: str, input: str, text: str):
+# Check if content is already stored in file
+def check_content(file_path: str, link: str, text: str):
+    link = link.replace("[", "")
+    link = link.replace("]", "")
+    link = link.replace("'", "")
+
     with open(file_path, 'r') as f:
-        f.read()
-        if input not in f:
-            print(f"Store {text} in Q&A document: {file_path}")
-            return True
-        else:
-            print(f"{text} already stored in Q&A document.")
-            return False
-        
+        lines = f.readlines()
+        for line in lines:
+            if link in line:
+                print(f"{text} already stored in file, skipping source: {link}")
+                return False
+            
+        print(f"{text} is new, store in file: {file_path}")
+        return True
+              
 
 # API: Write text to file
 def text_writer(file_path: str, input: str, text: str):
@@ -254,31 +259,21 @@ def text_writer(file_path: str, input: str, text: str):
         mode = 'w'
 
     # Create/Overwrite files for initial and continuous web scrape to file
-    if text == "initial web scrape" or text == "web scrape to file":
+    if text == "Initial web scrape" or text == "Web scrape to file":
         mode = 'w'
 
-    # Setup write flag
-    if mode == 'a':
-        write_flag = check_content(file_path, input, text)
-    else:
-        write_flag = True
-
     # Write fo file
-    if input and write_flag:
-        if input.startswith("As an AI assistant"):
-            input = input.split(". ")[1]
+    if input:
         with open(file_path, mode) as f:
             f.write(input)
         return input
-    elif not write_flag:
-        return ""
     else:
         print("Error: Extracting text failed")
         return ""
 
 
 # API: Load text from e.g. internet result & embedding document in vector store
-def text_loader(persist_directory: str, qa_result: str, links: str):
+def text_loader(persist_directory: str, input: str, links: str):
     # Define the Chroma settings
     CHROMA_SETTINGS = Settings(
             chroma_db_impl='duckdb+parquet',
@@ -293,8 +288,8 @@ def text_loader(persist_directory: str, qa_result: str, links: str):
         # Update and store locally vectorstore
         print(f"Appending to existing vectorstore at: {persist_directory}")
         db = Chroma(persist_directory=persist_directory, embedding_function=embeddings, client_settings=CHROMA_SETTINGS)
-        if qa_result != "":
-            texts = process_text(qa_result, links)
+        if input != "":
+            texts = process_text(input, links)
             print(f"Creating embeddings. May take some minutes...")
             db.add_documents(texts)
             db.persist()
@@ -307,7 +302,7 @@ def text_loader(persist_directory: str, qa_result: str, links: str):
     else:
         # Create and store locally vectorstore
         print("Creating new vectorstore")
-        texts = process_text(qa_result, links)
+        texts = process_text(input, links)
         print(f"Creating embeddings. May take some minutes...")
         db = Chroma.from_documents(texts, embeddings, persist_directory=persist_directory, client_settings=CHROMA_SETTINGS)
         db.persist()
